@@ -21,7 +21,7 @@ def eratos(n):
 while True:
     try:
         print("Input n > 2: ", end="")
-        n = int(input())
+        n = 1000
         if n <= 2:
             raise ValueError("Number has to be bigger than 2!")
         break
