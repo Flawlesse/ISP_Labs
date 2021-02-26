@@ -25,9 +25,9 @@ while True:
         if n <= 2:
             raise ValueError("Number has to be bigger than 2!")
         break
-    except:
+    except ValueError as e:
         print("Error! Bad input.")
-        print(f"Exception message: {sys.exc_info()[0]}")
+        print(f"Exception message: {sys.exc_info()[0]}\t{e}")
         now = datetime.now().strftime(f"%d:%m:%y %H:%M:%S")
         print(f"Exact time: {now}")
 
