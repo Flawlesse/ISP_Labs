@@ -1,7 +1,9 @@
 import inspect
 import types
+import sys
 import dis
 import builtins
+#from math import *
 import math
 
 class myjson:
@@ -47,9 +49,13 @@ class myjson:
                         globs[i] = f"<recursive function {i}>" # recursion identifier
                     else:
                         globs[i] = self.func_to_dict(func.__globals__[i])
+                elif inspect.ismodule(func.__globals__[i]):
+                    globs[i] = f"<module {i}>" # sets the module with its name
                 else:
                     globs[i] = func.__globals__[i]
-            
+
+        # do something with importing modules
+
         return {"__globals__": globs,
             "__name__": func.__name__,
             "__code__":
@@ -86,10 +92,14 @@ class myjson:
                 clsdict[key] = self.func_to_dict(attrs[key])
             elif isinstance(attrs[key], (
                                            set, dict, list, tuple, int, 
-                                           float, bool, type(None)
+                                           float, bool, type(None), str
                                           )
                 ):
                 clsdict[key] = attrs[key]
+            elif isinstance(attrs[key], classmethod):
+                clsdict[key] = {"classmethod" : self.func_to_dict(attrs[key].__func__)}
+            elif isinstance(attrs[key], staticmethod):
+                clsdict[key] = {"staticmethod" : self.func_to_dict(attrs[key].__func__)}
         return {"name" : clsobj.__name__, "bases" : bases, "dict" : clsdict}
 
     def obj_to_dict(self, obj):
@@ -130,7 +140,16 @@ class myjson:
         elif isinstance(obj, types.FunctionType):
             return self.dumps_dict(self.func_to_dict(obj), level + 1)
         elif isinstance(obj, types.BuiltinFunctionType):
-            return f"<built-in function {obj.__name__}>"
+            if obj.__name__ in self.builtin_names:
+                return f"\"<built-in function {obj.__name__}>\""
+            else:
+                module = __import__(obj.__module__)
+                module_func = getattr(module, obj.__name__)
+                if module_func is not None: #and inspect.isfunction(module_func):
+                    return f"\"<{module.__name__} function {module_func.__name__}>\"" 
+                else:
+                    raise NameError(f"No function {obj.__name__} was found" \
+                                    + f"in module {module.__name__}")
         elif obj is None:
             return "null"
         elif obj is True:
@@ -427,6 +446,10 @@ class myjson:
             and "bases" in jsonobj \
             and "dict" in jsonobj:
             res = self.dict_to_class(jsonobj)
+        elif "staticmethod" in jsonobj:
+            res = staticmethod(self.dict_to_func(jsonobj["staticmethod"]))
+        elif "classmethod" in jsonobj:
+            res = classmethod(self.dict_to_func(jsonobj["classmethod"]))
         else:
             res = {}
             for key, val in jsonobj.items():
@@ -457,6 +480,29 @@ class myjson:
             res = self.deserialize_jobj(jsonobj)
         elif isinstance(jsonobj, list):
             res = self.deserialize_jarr(jsonobj)
+        elif isinstance(jsonobj, str) and jsonobj[0] == '<' and jsonobj[-1] == '>':
+            tmp = jsonobj[1 : -1].split(' ')
+            if len(tmp) == 3:
+                module_name, func_name = tmp[0], tmp[2]
+                if "built-in" == module_name:
+                    module = builtins
+                elif "recursive" == module_name:
+                    return module_name
+                else: 
+                    module = __import__(module_name)
+                module_func = getattr(module, func_name)
+                if module_func is not None: #and inspect.isfunction(module_func):
+                    return module_func 
+                else:
+                    raise NameError(f"No function {func_name} was found" \
+                                    + f"in module {module_name}")
+            elif len(tmp) == 2:
+                module_name = tmp[1]
+                module = __import__(module_name)
+                if module is not None:
+                    return module
+                else:
+                    raise NameError(f"No module {module_name} was found")
         else:
             res = jsonobj
         return res
@@ -490,7 +536,7 @@ def mul(a): # closure
     return helper
 
 def fact(a):
-    #print(math.sqrt(a))
+    print(math.sqrt(a))
     if a < 2:
         return 1
     return a * fact(a - 1)
@@ -499,13 +545,23 @@ class A:
     def __init__(self):
         self.prop1 = 7
         self.prop2 = [12,13,14]
-
-    def fact(self, a):
+    
+    @classmethod
+    def fact(cls, a):
         #print(math.sqrt(a))
-        print(a)
+        print(math.sqrt(a))
+        #print(a)
         if a < 2:
             return 1
-        return a * self.fact(a - 1)
+        return a * cls.fact(a - 1)
+
+    @classmethod
+    def cmeth(cls, b):
+        print(cls.fact)
+
+    @staticmethod
+    def smeth(a):
+        print(a)
 
 class myclass:
     def __init__(self):
@@ -519,6 +575,9 @@ class myclass:
 
 def main():
     packer = myjson(2)
+
+    print(packer.dumps(math.sqrt))
+
     obj1 = myclass()
     packer.dump(obj1, "output1.json")
 
@@ -526,10 +585,10 @@ def main():
     packer.dump(cls1, "output2.json")
 
     obj = packer.load("output1.json")
-    obj.d.fact(5)
+    print(type(obj.d).fact(5))
+    obj.d.smeth(54)
+    type(obj.d).smeth([13,(2,"aa")])
 
-    #string = "aboba"
-    #packer.dump(string, "output3.json")
     obj = packer.load("output3.json")
     print(obj)
 
