@@ -9,14 +9,29 @@ import math
 class myjson:
     def __init__(self, indent=4):
         self._indent = indent
-        self.builtin_names = [el[0] for el in inspect.getmembers(builtins, inspect.isbuiltin)]
-    
+        self.builtin_fnames = [el[0] for el in inspect.getmembers(builtins, inspect.isbuiltin)]
+        self.builtin_cnames = [el[0] for el in inspect.getmembers(builtins, inspect.isclass)]
+
     def dumps_list(self, lst, level): 
-        if len(lst) == 0:
-            return "[]"
+        # this can be either of list, tuple, set or frozenset,
+        # so we add an element at the very beginning which will
+        # indictate what it actually is
+        tmplst = list()
+        if isinstance(lst, list):
+            tmplst.append("list")
+        elif isinstance(lst, tuple):
+            tmplst.append("tuple")
+        elif isinstance(lst, set):
+            tmplst.append("set")
+        elif isinstance(lst, frozenset):
+            tmplst.append("frozenset")
+        else:
+            raise ValueError(f"Cannot dump json array from {lst}.")
+
+        tmplst.extend(list(lst))
         curr_indent = "\n" + " " * self._indent * level
         res = curr_indent + "["
-        for el in lst:
+        for el in tmplst:
             res += curr_indent + self.dumps(el, level) + ","
         res = res[:-1] # gettin rid of the last comma
         res += curr_indent + "]"
@@ -38,13 +53,16 @@ class myjson:
                 .replace("\r", r"\r").replace("\t", r"\t").replace("\f", r"\f")\
                 .replace("\b", "\\b").replace("\n", r"\n") + '"'
 
-    def func_to_dict(self, func):
-        # this code will be updated
-        globs = {}
+    def pull_from_code_to_func_globals(self, codeobj, func = None):
+        if func is None:
+            return {}
         
-        for i in func.__code__.co_names: 
-            if i in self.builtin_names:
+        globs = {}
+        for i in codeobj.co_names: 
+            if i in self.builtin_fnames:
                 globs[i] = f"<built-in function {i}>"
+            elif i in self.builtin_cnames:
+                globs[i] = f"<built-in class {i}>"
             elif i in func.__globals__:
                 if inspect.isclass(func.__globals__[i]):
                     globs[i] = self.cls_to_dict(func.__globals__[i])
@@ -58,16 +76,26 @@ class myjson:
                 else:
                     globs[i] = func.__globals__[i]
 
-        return {"__globals__": globs,
-            "__name__": func.__name__,
-            "__qualname__" : func.__qualname__,
-            "__code__": self.obj_to_dict(func.__code__),
-            "__module__" : func.__module__,
-            "__annotations__" : func.__annotations__,
-            "__closure__" : func.__closure__,
-            "__defaults__" : func.__defaults__,
-            "__kwdefaults__" : func.__kwdefaults__
-            }
+        for i in codeobj.co_consts:
+            if isinstance(i, types.CodeType):
+                globs.update(self.pull_from_code_to_func_globals(i, func))
+
+        return globs
+
+    def func_to_dict(self, func):
+        
+        globs = {}
+        globs.update(self.pull_from_code_to_func_globals(func.__code__, func))
+
+        return {"__globals__": globs, \
+            "__name__": func.__name__, \
+            "__qualname__" : func.__qualname__, \
+            "__code__": self.obj_to_dict(func.__code__), \
+            "__module__" : func.__module__, \
+            "__annotations__" : func.__annotations__, \
+            "__closure__" : func.__closure__, \
+            "__defaults__" : func.__defaults__, \
+            "__kwdefaults__" : func.__kwdefaults__}
     
     def cls_to_dict(self, clsobj):
         bases = []
@@ -81,11 +109,9 @@ class myjson:
                 clsdict[key] = self.cls_to_dict(attrs[key])
             elif inspect.isfunction(attrs[key]):
                 clsdict[key] = self.func_to_dict(attrs[key])
-            elif isinstance(attrs[key], (
-                                           set, dict, list, tuple, int, 
-                                           float, bool, type(None), str
-                                          )
-                ):
+            elif isinstance(attrs[key], (set, frozenset, dict, list, 
+                                        tuple, int, float, bool, 
+                                        type(None), str)):
                 clsdict[key] = attrs[key]
             elif isinstance(attrs[key], classmethod):
                 clsdict[key] = {"classmethod" : self.func_to_dict(attrs[key].__func__)}
@@ -94,25 +120,23 @@ class myjson:
         return {"name" : clsobj.__name__, "bases" : bases, "dict" : clsdict}
 
     def obj_to_dict(self, obj):
-        # this thing needs refactoring in case it parses code objects in closures!!!
         if isinstance(obj, types.CodeType):
-            #print("codetype called")
-            return {"co_argcount": obj.co_argcount,
-                    "co_posonlyargcount": obj.co_posonlyargcount,
-                    "co_kwonlyargcount" : obj.co_kwonlyargcount,
-                    "co_nlocals" : obj.co_nlocals,
-                    "co_stacksize" : obj.co_stacksize,
-                    "co_flags" : obj.co_flags,
-                    "co_code" : obj.co_code,
-                    "co_consts" : obj.co_consts,
-                    "co_names" : obj.co_names,
-                    "co_varnames" : obj.co_varnames,
-                    "co_filename" : obj.co_filename,
-                    "co_name" : obj.co_name,
-                    "co_firstlineno" : obj.co_firstlineno,
-                    "co_lnotab" : obj.co_lnotab,
-                    "co_freevars" : obj.co_freevars,
-                    "co_cellvars" : obj.co_cellvars}
+            return {"co_argcount": obj.co_argcount, \
+                    "co_posonlyargcount": obj.co_posonlyargcount, \
+                    "co_kwonlyargcount" : obj.co_kwonlyargcount, \
+                    "co_nlocals" : obj.co_nlocals, \
+                    "co_stacksize" : obj.co_stacksize, \
+                    "co_flags" : obj.co_flags, \
+                    "co_code" : obj.co_code, \
+                    "co_consts" : obj.co_consts, \
+                    "co_names" : obj.co_names, \
+                    "co_varnames" : obj.co_varnames, \
+                    "co_filename" : obj.co_filename, \
+                    "co_name" : obj.co_name, \
+                    "co_firstlineno" : obj.co_firstlineno, \
+                    "co_lnotab" : obj.co_lnotab, \
+                    "co_freevars" : obj.co_freevars, \
+                    "co_cellvars" : obj.co_cellvars}    
         return {"class": self.cls_to_dict(obj.__class__), "vars": obj.__dict__}
 
 
@@ -134,27 +158,25 @@ class myjson:
             return "true"   
         elif obj is False:
             return "false"
-        elif isinstance(obj, (int, float)):    # I honestly do not understand why the fuck 
-            return str(obj)                    # isinstance(True, (int, float)) returns True 
+        elif isinstance(obj, (int, float)):    
+            return str(obj)                    
         elif isinstance(obj, bytes):
             return f"\"{str(list(bytearray(obj)))}\""
         elif isinstance(obj, str):
             return self.dumps_str(obj)
-        elif isinstance(obj, (set, tuple)):
-            return self.dumps_list(list(obj), level + 1)
-        elif isinstance(obj, list):
+        elif isinstance(obj, (set, frozenset, list, tuple)):
             return self.dumps_list(obj, level + 1)
         elif isinstance(obj, dict):
             return self.dumps_dict(obj, level + 1)
         elif isinstance(obj, types.FunctionType):
             return self.dumps_dict(self.func_to_dict(obj), level + 1)
         elif isinstance(obj, types.BuiltinFunctionType):
-            if obj.__name__ in self.builtin_names:
+            if obj.__name__ in self.builtin_fnames:
                 return f"\"<built-in function {obj.__name__}>\""
             else:
                 module = __import__(obj.__module__)
                 module_func = getattr(module, obj.__name__)
-                if module_func is not None: #and inspect.isfunction(module_func):
+                if module_func is not None: 
                     return f"\"<{module.__name__} function {module_func.__name__}>\"" 
                 else:
                     raise NameError(f"No function {obj.__name__} was found" \
@@ -163,10 +185,12 @@ class myjson:
             return "null"
         elif inspect.isclass(obj):
             return self.dumps_dict(self.cls_to_dict(obj), level + 1)
+        elif isinstance(obj, types.CellType):   # for closures
+            return self.dumps(obj.cell_contents)
         elif isinstance(obj, object):
             return self.dumps_dict(self.obj_to_dict(obj), level + 1)
         else:
-            raise TypeError()
+            raise TypeError(f"Object {obj} is not JSON-parsable.")
 
     def dump(self, obj, fname):
         try:
@@ -209,26 +233,58 @@ class myjson:
             raise ValueError(f"Something is not parsable at index {index}")
         return res, index
 
-
     def parse_jstring(self, jstr, index):
         if jstr[index] != '"':
             self._exception_notify(jstr, index)
             raise ValueError(f"This is not a string! Current index: {index}")
         end_index = index + 1
 
-        while True: # read everything until we get bare " symbol
-            if jstr[end_index] == '\\': # this one is for sure escaping
-                end_index += 2
-                continue
-            if jstr[end_index] == '"':
-                break
-            end_index += 1
+        try:
+            while True: # read everything until we get bare " symbol
+                if jstr[end_index] == '\\': # this one is for sure escaping
+                    end_index += 2
+                    continue
+                if jstr[end_index] == '"':
+                    break
+                end_index += 1
+        except IndexError:
+            raise IndexError(f"No \" was encountered on the end of string!")
         
-        res = jstr[index + 1 : end_index]
-        res = res.replace(r"\"", "\"").replace(r"\n", "\n")\
-                .replace(r"\r", "\r").replace(r"\t", "\t")\
-                .replace(r"\\", "\\").replace("\\b", "\b")\
-                .replace(r"\f", "\f").replace(r"\/", "/")
+        s = jstr[index + 1 : end_index]
+        # res = res.replace(r"\\", "\\").replace(r"\n", "\n")\
+        #         .replace(r"\r", "\r").replace(r"\t", "\t")\
+        #         .replace(r"\"", "\"").replace("\\b", "\b")\
+        #         .replace(r"\f", "\f").replace(r"\/", "/")
+
+        # working on escaping symblos
+        res, n, i = [], len(s), 0
+        while i < n:
+            if s[i] == "\\":
+                if i + 1 == n:
+                    break
+                if s[i + 1] == "\\":
+                    res.append("\\")
+                elif s[i + 1] == "n":
+                    res.append("\n")
+                elif s[i + 1] == "r":
+                    res.append("\r")
+                elif s[i + 1] == "t":
+                    res.append("\t")
+                elif s[i + 1] == '"':
+                    res.append('"')
+                elif s[i + 1] == "b":
+                    res.append("\b")
+                elif s[i + 1] == "f":
+                    res.append("\f")
+                elif s[i + 1] == "/":
+                    res.append("/")
+                else:
+                    raise ValueError(f"Can't work out this escaping {s[i : i + 2]}.")
+                i += 1
+            else:
+                res.append(s[i])
+            i += 1
+        res = "".join(res)
         return res, end_index + 1
     
     def parse_jdigit(self, jstr, index):
@@ -246,7 +302,6 @@ class myjson:
         try:
             jstr[end_index + 1] # check if we are at the very end of json string
         except IndexError:
-            # convert to int or float
             try: 
                 return int(jstr[index : end_index]), end_index
             except ValueError:
@@ -273,8 +328,6 @@ class myjson:
             self._exception_notify(jstr, index)
             raise ValueError(f"This is not an array! Current index: {index}")
         end_index = index + 1
-        if jstr[index + 1] == ']':
-            return list(), end_index + 1
         
         lst = []
         comma_encountered = False
@@ -311,7 +364,22 @@ class myjson:
                                     + f"Current index: {end_index}") 
             else:
                 lst.append(res)
-        # on this stage we have the fully parsed array
+        # On this stage we have the fully parsed array.
+        # Now, we want to transfrom it to type needed.
+        # Don't forget to get rid of the first element!
+        if isinstance(lst[0], str):
+            if lst[0] == "list":
+                lst = lst[1:]
+            elif lst[0] == "tuple":
+                lst = tuple(lst[1:])
+            elif lst[0] == "set":
+                lst = set(lst[1:])
+            elif lst[0] == "frozenset":
+                lst = frozenset(lst[1:])
+            else:
+                raise ValueError("Cannot understand which type " \
+                + "(list, tuple, set, frozenset) to transfrom to."\
+                + f"Value: {lst}")
         return lst, end_index + 1
             
     def parse_jdict(self, jstr, index):
@@ -388,7 +456,6 @@ class myjson:
 
     # ACTUALLY GETTING DESERIALIZED OBJECT
     def dict_to_func(self, jsonobj):
-        # here will be the whole lot of magic behind closures and other stuff
         globs = {}
         for key, val in jsonobj["__globals__"].items():
             if isinstance(val, str):
@@ -398,19 +465,38 @@ class myjson:
             globs[key] = self._deserialize(val)
 
         codeobj = self.dict_to_code(jsonobj["__code__"])
+        fake_cells = self._make_fake_cells(jsonobj["__closure__"])
         res = types.FunctionType(codeobj, 
-                                 globs, 
-                                 jsonobj["__name__"])
-
+                                globs, 
+                                jsonobj["__name__"],
+                                None,
+                                fake_cells)
         res.__defaults__ = jsonobj["__defaults__"] if jsonobj["__defaults__"] is None \
-                             else tuple(jsonobj["__defaults__"])
-        res.__kwdefaults__ = jsonobj["__kwdefaults__"]
-        self.add_recursion_if_needed(res)
-
+                             else tuple(self._deserialize(jsonobj["__defaults__"]))
+        res.__kwdefaults__ = self._deserialize(jsonobj["__kwdefaults__"])
+        self._add_recursion_if_needed(res)
+        self._add_builtins(res) # for unexpected issues
         return res
 
-    # use when de-serializing
-    def add_recursion_if_needed(self, func_obj):
+    def _add_builtins(self, func):
+        func.__globals__["__builtins__"] = builtins
+
+    def _make_fake_cells(self, closure_tuple):
+        def make_cell(val = None):
+            x = val
+            def closure():
+                return x
+            return closure.__closure__[0]
+        
+        if closure_tuple is None:
+            return None
+        
+        lst = []
+        for v in closure_tuple:
+            lst.append(make_cell(v))
+        return tuple(lst)
+
+    def _add_recursion_if_needed(self, func_obj):
         if (func_obj.__name__ in func_obj.__globals__.keys()):
             if inspect.ismethod(func_obj):
                 func_obj.__globals__[func_obj.__name__] = func_obj.__func__
@@ -429,23 +515,22 @@ class myjson:
         res.__dict__ = self.deserialize_jobj(jsonobj["vars"])
         return res
 
-    def dict_to_code(self, jsonobj):
-        consts = tuple(self._deserialize(jsonobj["co_consts"]))
-        codeobj = types.CodeType(jsonobj["co_argcount"],
-                                jsonobj["co_posonlyargcount"],
-                                jsonobj["co_kwonlyargcount"],
-                                jsonobj["co_nlocals"],
-                                jsonobj["co_stacksize"],
-                                jsonobj["co_flags"],
-                                bytes(bytearray(self.parse_jarray(jsonobj["co_code"], 0)[0])),
-                                consts,
-                                tuple(jsonobj["co_names"]),
-                                tuple(jsonobj["co_varnames"]),
-                                jsonobj["co_filename"],
-                                jsonobj["co_name"],
-                                jsonobj["co_firstlineno"],
-                                bytes(bytearray(self.parse_jarray(jsonobj["co_lnotab"], 0)[0])),
-                                tuple(jsonobj["co_freevars"]),
+    def dict_to_code(self, jsonobj): 
+        codeobj = types.CodeType(jsonobj["co_argcount"], \
+                                jsonobj["co_posonlyargcount"], \
+                                jsonobj["co_kwonlyargcount"], \
+                                jsonobj["co_nlocals"], \
+                                jsonobj["co_stacksize"], \
+                                jsonobj["co_flags"], \
+                                bytes(bytearray(self.parse_jarray(jsonobj["co_code"], 0)[0])), \
+                                self._deserialize(jsonobj["co_consts"]), \
+                                tuple(jsonobj["co_names"]), \
+                                tuple(jsonobj["co_varnames"]), \
+                                jsonobj["co_filename"], \
+                                jsonobj["co_name"], \
+                                jsonobj["co_firstlineno"], \
+                                bytes(bytearray(self.parse_jarray(jsonobj["co_lnotab"], 0)[0])), \
+                                tuple(jsonobj["co_freevars"]), \
                                 tuple(jsonobj["co_cellvars"]))
         return codeobj
 
@@ -485,17 +570,7 @@ class myjson:
         else:
             res = {}
             for key, val in jsonobj.items():
-                if isinstance(val, str):
-                    if "built-in function" in val:
-                        res[key] = getattr(builtins, val)
-                    else:
-                        res[key] = val
-                elif isinstance(val, list):
-                    res[key] = self.deserialize_jarr(val)
-                elif isinstance(val, dict):
-                    res[key] = self.deserialize_jobj(val)
-                else:
-                    res[key] = val
+                res[key] = self._deserialize(val)
 
         return res
             
@@ -504,37 +579,43 @@ class myjson:
         res = []
         for el in jsonobj:
             res.append(self._deserialize(el))
-        return res
+        return type(jsonobj)(res)
 
 
     def _deserialize(self, jsonobj):
         if isinstance(jsonobj, dict):
             res = self.deserialize_jobj(jsonobj)
-        elif isinstance(jsonobj, list):
+        elif isinstance(jsonobj, (list, tuple, set, frozenset)):
             res = self.deserialize_jarr(jsonobj)
-        elif isinstance(jsonobj, str) and jsonobj[0] == '<' and jsonobj[-1] == '>':
-            tmp = jsonobj[1 : -1].split(' ')
-            if len(tmp) == 3:
-                module_name, func_name = tmp[0], tmp[2]
-                if "built-in" == module_name:
-                    module = builtins
-                elif "recursive" == module_name:
-                    return module_name
-                else: 
-                    module = __import__(module_name)
-                module_func = getattr(module, func_name)
-                if module_func is not None: #and inspect.isfunction(module_func):
-                    return module_func 
-                else:
-                    raise NameError(f"No function {func_name} was found" \
-                                    + f"in module {module_name}")
-            elif len(tmp) == 2:
-                module_name = tmp[1]
-                module = __import__(module_name)
-                if module is not None:
-                    return module
-                else:
-                    raise NameError(f"No module {module_name} was found")
+        elif isinstance(jsonobj, str) and len(jsonobj) != 0:
+            if jsonobj[0] == '<' and jsonobj[-1] == '>':
+                tmp = jsonobj[1 : -1].split(' ')
+                if len(tmp) == 3:
+                    module_name, type_name, name = tmp[0], tmp[1], tmp[2] 
+                    if "built-in" == module_name:
+                        module = builtins
+                        if "function" == type_name or "class" == type_name:
+                            module_attr = getattr(module, name)
+                            return module_attr
+                    elif "recursive" == module_name: # leave it as is
+                        return jsonobj
+                    else:
+                        module = __import__(module_name)
+                        module_attr = getattr(module, name)
+                        return module_attr 
+                elif len(tmp) == 2:
+                    module_name = tmp[1]
+                    try:
+                        module = __import__(module_name)
+                        return module
+                    except ModuleNotFoundError:
+                        if module_name[0:2] == module_name[-2:] == '__':
+                            module = __import__(module_name[2:-2])
+                            return module
+                        else:
+                            raise NameError(f"No module {module_name} was found.")
+            else:
+                res = jsonobj
         else:
             res = jsonobj
         return res
@@ -565,6 +646,7 @@ class myjson:
 def mul(a): # closure
     def helper(b):
         print(a*b)
+        print(math.sqrt(a*b))
     return helper
 
 def fact(a):
@@ -608,16 +690,37 @@ class myclass:
 def main():
     packer = myjson(2)
     #dis.dis(mul)
-    #print(packer.dumps(mul))
-    #times4 = mul(4)
-    #dis.dis(times4)
-    #print(times4)
-    # print(packer.dumps(math.sqrt))
     obj = myjson
     packer.dump(obj, "output4.json")
     p = packer.load("output4.json")
-    packer = p()
+    new_packer = p(2)
 
+    obj = packer.load("output3.json")
+    print(obj)
+
+    packer = new_packer
+
+    obj = packer.load("output3.json")
+    print(obj)
+
+    print(packer.dumps(mul))
+    s = packer.dumps(mul)
+    f = packer.loads(s)
+    times4 = f(4)
+    print(times4(5))
+    times4 = mul(4)
+    #dis.dis(times4)
+    
+    s = packer.dumps(times4)
+    print(s)
+    f = packer.loads(s)
+    print(f(5))
+    
+    # print("Old packer.parse_jstring:")
+    # dis.dis(packer.parse_jstring)
+    # print("\nNew packer.parse_jstring:")
+    # dis.dis(new_packer.parse_jstring)
+    #packer = new_packer
 
     obj1 = myclass()
     packer.dump(obj1, "output1.json")
@@ -629,9 +732,6 @@ def main():
     print(type(obj.d).fact(5))
     obj.d.smeth(54)
     type(obj.d).smeth([13,(2,"aa")])
-
-    obj = packer.load("output3.json")
-    print(obj)
 
     print(packer.dumps(fact))
     
