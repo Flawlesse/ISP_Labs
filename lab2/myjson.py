@@ -251,11 +251,6 @@ class myjson:
             raise IndexError(f"No \" was encountered on the end of string!")
         
         s = jstr[index + 1 : end_index]
-        # res = res.replace(r"\\", "\\").replace(r"\n", "\n")\
-        #         .replace(r"\r", "\r").replace(r"\t", "\t")\
-        #         .replace(r"\"", "\"").replace("\\b", "\b")\
-        #         .replace(r"\f", "\f").replace(r"\/", "/")
-
         # working on escaping symblos
         res, n, i = [], len(s), 0
         while i < n:
@@ -573,14 +568,12 @@ class myjson:
                 res[key] = self._deserialize(val)
 
         return res
-            
-    
+               
     def deserialize_jarr(self, jsonobj):
         res = []
         for el in jsonobj:
             res.append(self._deserialize(el))
         return type(jsonobj)(res)
-
 
     def _deserialize(self, jsonobj):
         if isinstance(jsonobj, dict):
