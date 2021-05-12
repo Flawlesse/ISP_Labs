@@ -1,6 +1,7 @@
 import inspect
 import types
 import builtins
+import copy
 # from math import *
 import math
 from collections import deque
@@ -84,6 +85,8 @@ class mytoml:
         elif obj is None:
             return "<None>"
         elif inspect.isclass(obj):
+            if obj.__name__ in self.builtin_cnames:
+                return f"<built-in class {obj.__name__}>"
             return self.expand_dict(self.cls_to_dict(obj))
         elif isinstance(obj, types.CellType):   # for closures
             return self._expand(obj.cell_contents)
@@ -332,13 +335,20 @@ class mytoml:
             res = f"[{full_name}]\n"
 
         for key, val in dct.items():
+            # if " " in key or "." in key or '"' in key:
+            #     key = '"' + key + '"'
             if isinstance(val, dict):
                 self.serialization_q.append(
-                    (self.generate_key(full_name, key), val)
+                    (
+                        self.generate_key(
+                            *self.split_key(full_name),
+                            key),
+                        val)
                 )
             else:
+                # full_key = self.generate_key(*self.split_key(key))
                 full_key = self.generate_key(key)
-                res += f"{str(full_key)} = {self._dumps(val)}\n"
+                res += f"{full_key} = {self._dumps(val)}\n"
         res += "\n"
         return res
 
@@ -374,6 +384,9 @@ class mytoml:
         elif obj is None:
             return "\"<None>\""
         elif inspect.isclass(obj):
+            if obj.__name__ in self.builtin_cnames:
+                # built-in class, like exceptions
+                return f"\"<built-in class {obj.__name__}>\""
             return self.dumps_dict(self.cls_to_dict(obj))
         elif isinstance(obj, types.CellType):   # for closures
             return self._dumps(obj.cell_contents)
@@ -384,6 +397,8 @@ class mytoml:
 
     def dumps(self, obj):
         toml_dict = dict()  # primitivated dictionary to convert to TOML
+        obj = copy.deepcopy(obj)
+
         if obj is True:
             return "ttype = \"bool\"\ntvalue = true"
         elif obj is False:
@@ -422,7 +437,10 @@ class mytoml:
                                     + f"in module {module.__name__}")
         elif inspect.isclass(obj):
             toml_dict["ttype"] = "dictionary"
-            toml_dict["tvalue"] = self.cls_to_dict(obj)
+            if obj.__name__ in self.builtin_cnames:
+                toml_dict["tvalue"] = f"<built-in class {obj.__name__}>"
+            else:
+                toml_dict["tvalue"] = self.cls_to_dict(obj)
         elif isinstance(obj, object):
             toml_dict["ttype"] = "dictionary"
             toml_dict["tvalue"] = self.obj_to_dict(obj)
@@ -449,7 +467,131 @@ class mytoml:
         with open(fname, "w") as fhandler:
             fhandler.write(self.dumps(obj))
 
-    def set_val(self, dct, full_key, val):  # UNUSED!!!!
+    # DESERIALIZING SECTION #
+    def make_special(self, string):
+        if string[0] != '<' or string[-1] != '>':
+            raise AttributeError(f"String {string} isn't special.")
+
+        if string[1: -1] == "None":
+            return None
+
+        tokens = string[1: -1].split()
+        if len(tokens) == 2:
+            if tokens[0] == 'placeholder':
+                return string
+            elif tokens[0] == 'module':
+                return __import__(tokens[1])
+        elif len(tokens) == 3:
+            if tokens[1] == "function" \
+                    or tokens[1] == "class":
+                if tokens[0] == "built-in":
+                    module = builtins
+                else:
+                    module = __import__(tokens[0])
+                module_attr = getattr(module, tokens[2])
+                return module_attr
+            else:
+                return string
+        else:
+            return string
+
+    def parse_key(self, string):
+        quote_counter = 0
+        string = ' ' + string
+        for i in range(len(string)):
+            if string[i] == '=' and quote_counter % 2 == 0:
+                return string[: i].strip(), i
+            elif string[i] == '"' and string[i - 1] != '\\':
+                quote_counter += 1
+        raise KeyError(f"Unable to parse key in here: {string}")
+
+    def _parse(self, tstr, index):
+        if tstr[index] == '"':
+            res, index = self.parse_tstring(tstr, index)
+        elif tstr[index] == '[':
+            res, index = self.parse_tarray(tstr, index)
+        elif tstr[index] == 't' and tstr[index: index + 4] == "true":
+            index += 4
+            res = True
+        elif tstr[index] == 'f' and tstr[index: index + 5] == "false":
+            index += 5
+            res = False
+        elif tstr[index].isdigit() \
+                or (
+                    tstr[index] == '-'
+                    or tstr[index] == '+') \
+                and tstr[index + 1].isdigit():
+            res, index = self.parse_tdigit(tstr, index)
+        else:
+            raise ValueError(f"Not a proper digit. String: {tstr}")
+        return res, index
+
+    def _evalute(self, tstr):
+        lines = tstr.split('\n')
+        for i in range(len(lines)):
+            lines[i] = lines[i].strip()
+
+        table_encountered = True
+        self.current_table_key = ""
+        toml_dict = dict()
+        for line in lines:
+            if not line:  # since we splitted on a '\n'
+                table_encountered = False  # signifies the end of table
+            elif line[0] == '[' and line[-1] == ']':
+                if table_encountered is False:
+                    table_encountered = True
+                    self.current_table_key = line[1:-1]
+                    self.set_val(
+                        toml_dict,
+                        self.current_table_key,
+                        dict()
+                        )
+                else:
+                    raise KeyError("Table has been already encountered!"
+                                   + f"Current table key: "
+                                   + f"{self.current_table_key}")
+            else:
+                if '=' not in line:
+                    raise ValueError("Not a key-value pair!"
+                                     + f"Current line: {line}")
+                key, ind = self.parse_key(line)
+                strval = line[ind:].strip()  # string repr of val
+                val, _ = self._parse(strval, 0)
+                key = self.generate_key(
+                    *self.split_key(self.current_table_key),
+                    *self.split_key(key))
+                self.set_val(toml_dict, key, val)
+
+        # do things to place all placeholders where needed !!!
+        toml_dict["tvalue"] = self._pullup_placeholders(
+            toml_dict["tvalue"],
+            toml_dict["placeholders"])
+        del toml_dict["placeholders"]  # we don't need this anymore
+        return toml_dict
+
+    def _pullup_placeholders(self, val, ph_dict):
+        if isinstance(val, dict):
+            for key in val:
+                val[key] = self._pullup_placeholders(val[key], ph_dict)
+        elif isinstance(val, (tuple, list, set, frozenset)):
+            val_type = type(val)
+            val_lst = list(val)
+            for i in range(len(val_lst)):
+                val_lst[i] = self._pullup_placeholders(val_lst[i], ph_dict)
+            return val_type(val_lst)
+        elif isinstance(val, str):
+            if not val:
+                return val
+            elif val[0] == '<' and val[-1] == '>':
+                tokens = val[1: -1].split()
+                if tokens[0] == 'placeholder':
+                    ph_dict[val] = self._pullup_placeholders(
+                        ph_dict[val],
+                        ph_dict)
+                    return ph_dict[val]
+        return val
+
+    def set_val(self, dct, full_key, val):
         key_seq = self.split_key(full_key)
         curr_dct_lvl = dct
         for key in key_seq[:-1]:
@@ -459,13 +601,11 @@ class mytoml:
                 curr_dct_lvl[key] = dict()
                 curr_dct_lvl = curr_dct_lvl[key]
         key = key_seq[-1]
-        if isinstance(val, (list, tuple, set, frozenset)):
-            curr_dct_lvl[key] = self.expand_list(val)
+        curr_dct_lvl[key] = val
 
     def parse_tstring(self, tstr, index):
         if tstr[index] != '"':
-            # self._exception_notify(tstr, index)
-            raise ValueError(f"This is not a string! Current index: {index}")
+            raise ValueError(f"This is not a string! String: {tstr}")
         end_index = index + 1
 
         try:
@@ -510,7 +650,308 @@ class mytoml:
                 res.append(s[i])
             i += 1
         res = "".join(res)
+        if res and res[0] == '<' and res[-1] == '>':
+            res = self.make_special(res)  # if string is like "<None>"
         return res, end_index + 1
+
+    def parse_tdigit(self, tstr, index):
+        if not (tstr[index].isdigit() or tstr[index] == '-'
+                or tstr[index] == '+'):
+            raise ValueError(f"This is not a number! String: {tstr}")
+        end_index = index + 1
+        try:
+            while True:
+                if not tstr[end_index].isdigit() \
+                        and tstr[end_index] != 'E' \
+                        and tstr[end_index] != 'e' and tstr[end_index] != '+' \
+                        and tstr[end_index] != '-' and tstr[end_index] != '.':
+                    break
+                end_index += 1
+
+            tstr[end_index + 1]
+            # check if we are at the very end of toml string
+        except IndexError:
+            try:
+                return int(tstr[index: end_index].strip()), end_index
+            except ValueError:
+                try:
+                    return float(tstr[index: end_index].strip()), end_index
+                except ValueError:
+                    raise ValueError(f"Digit like this \""
+                                     + f"{tstr[index: end_index]}\""
+                                     + f" is non-parsable!")
+
+        if not tstr[end_index + 1].isdigit() \
+                and tstr[end_index + 1] != 'E' \
+                and tstr[end_index + 1] != 'e' and tstr[end_index + 1] != '+' \
+                and tstr[end_index + 1] != '-' and tstr[end_index + 1] != '.':
+            try:
+                return int(tstr[index: end_index].strip()), end_index
+            except ValueError:
+                try:
+                    return float(tstr[index: end_index].stip()), end_index
+                except ValueError:
+                    raise ValueError(f"Digit like this \""
+                                     + f"{tstr[index: end_index]}\""
+                                     + f" is non-parsable!")
+        raise ValueError(f"Digit like this \""
+                         + f"{tstr[index: end_index + 1]}\""
+                         + f" is non-parsable!")
+
+    def parse_tarray(self, tstr, index):
+        if tstr[index] != '[':
+            raise ValueError(f"This is not an array! Current index: {index}")
+        end_index = index + 1
+
+        lst = []
+        comma_encountered = False
+        while True:
+            if tstr[end_index] == ']':
+                if not comma_encountered:
+                    break
+                else:
+                    raise ValueError("Unneeded comma at the end!"
+                                     + f"String: {tstr}")
+            elif tstr[end_index] == ',':
+                if not comma_encountered:
+                    comma_encountered = True
+                    end_index += 1
+                    continue
+                else:
+                    raise ValueError(f"Two commas in a row encountered!"
+                                     + f"String: {tstr}")
+            elif tstr[end_index] == ' ':
+                end_index += 1
+                continue
+
+            res, end_index = self._parse(tstr, end_index)
+
+            if len(lst) != 0:
+                if comma_encountered:
+                    lst.append(res)
+                    comma_encountered = False
+                else:
+                    raise ValueError("One of elements in array is "
+                                     + "not json parsable!"
+                                     + f"Current index: {end_index}")
+            else:
+                lst.append(res)
+        # On this stage we have the fully parsed array.
+        # Now, we want to transfrom it to type needed.
+        # Don't forget to get rid of the first element! (if it exists)
+        if not lst:
+            return lst, index + 1
+
+        if isinstance(lst[0], str) \
+                and lst[0][0] == '<' \
+                and lst[0][-1] == '>':
+            if lst[0][1: -1] == "list":
+                lst = lst[1:]
+            elif lst[0][1: -1] == "tuple":
+                lst = tuple(lst[1:])
+            elif lst[0][1: -1] == "set":
+                lst = set(lst[1:])
+            elif lst[0][1: -1] == "frozenset":
+                lst = frozenset(lst[1:])
+            else:
+                raise ValueError("Cannot understand which type "
+                                 + "(list, tuple, set, frozenset)"
+                                 + "to transfrom to."
+                                 + f"Value: {lst}")
+        return lst, end_index + 1
+
+    # ACTUALLY GETTING DESERIALIZED OBJECT
+    def dict_to_func(self, tobj):
+        globs = {}
+        for key, val in tobj["__globals__"].items():
+            if isinstance(val, str):
+                if "built-in function" in val:
+                    globs[key] = getattr(builtins, key)
+                    continue
+            globs[key] = self._deserialize(val)
+
+        codeobj = self.dict_to_code(tobj["__code__"])
+        fake_cells = self._make_fake_cells(tobj["__closure__"])
+        res = types.FunctionType(codeobj,
+                                 globs,
+                                 tobj["__name__"],
+                                 None,
+                                 fake_cells)
+        res.__defaults__ = tobj["__defaults__"] \
+            if tobj["__defaults__"] is None \
+            else tuple(self._deserialize(tobj["__defaults__"]))
+        res.__kwdefaults__ = self._deserialize(tobj["__kwdefaults__"])
+        self._add_recursion_if_needed(res)
+        self._add_builtins(res)  # for unexpected issues
+        return res
+
+    def _add_builtins(self, func):
+        func.__globals__["__builtins__"] = builtins
+
+    def _make_fake_cells(self, closure_tuple):
+        def make_cell(val=None):
+            x = val
+
+            def closure():
+                return x
+            return closure.__closure__[0]
+
+        if closure_tuple is None:
+            return None
+        lst = []
+        for v in closure_tuple:
+            lst.append(make_cell(v))
+        return tuple(lst)
+
+    def _add_recursion_if_needed(self, func_obj):
+        if (func_obj.__name__ in func_obj.__globals__.keys()):
+            if inspect.ismethod(func_obj):
+                func_obj.__globals__[func_obj.__name__] = func_obj.__func__
+            else:
+                func_obj.__globals__[func_obj.__name__] = func_obj
+
+    def dict_to_class(self, tobj):
+        bases = self.deserialize_tarr(tobj["bases"])
+        return type(tobj["name"],
+                    tuple(bases),
+                    self.deserialize_tobj(tobj["dict"]))
+
+    def dict_to_obj(self, tobj):
+        objcls = self.dict_to_class(tobj["class"])
+        res = objcls()
+        res.__dict__ = self.deserialize_tobj(tobj["vars"])
+        return res
+
+    def dict_to_code(self, tobj):
+        codeobj = types.CodeType(tobj["co_argcount"],
+                                 tobj["co_posonlyargcount"],
+                                 tobj["co_kwonlyargcount"],
+                                 tobj["co_nlocals"],
+                                 tobj["co_stacksize"],
+                                 tobj["co_flags"],
+                                 bytes(bytearray(
+                                     self.parse_tarray(
+                                         tobj["co_code"], 0
+                                     )[0]
+                                 )),
+                                 self._deserialize(tobj["co_consts"]),
+                                 tuple(tobj["co_names"]),
+                                 tuple(tobj["co_varnames"]),
+                                 tobj["co_filename"],
+                                 tobj["co_name"],
+                                 tobj["co_firstlineno"],
+                                 bytes(bytearray(
+                                     self.parse_tarray(
+                                         tobj["co_lnotab"], 0
+                                     )[0]
+                                 )),
+                                 tuple(tobj["co_freevars"]),
+                                 tuple(tobj["co_cellvars"]))
+        return codeobj
+
+    def deserialize_tobj(self, tobj):
+        if "co_argcount" in tobj \
+                and "co_posonlyargcount" in tobj \
+                and "co_kwonlyargcount" in tobj \
+                and "co_nlocals" in tobj \
+                and "co_stacksize" in tobj \
+                and "co_flags" in tobj \
+                and "co_code" in tobj \
+                and "co_consts" in tobj \
+                and "co_names" in tobj \
+                and "co_varnames" in tobj \
+                and "co_filename" in tobj \
+                and "co_name" in tobj \
+                and "co_firstlineno" in tobj \
+                and "co_lnotab" in tobj \
+                and "co_freevars" in tobj \
+                and "co_cellvars" in tobj:
+            res = self.dict_to_code(tobj)
+        elif "__globals__" in tobj \
+                and "__name__" in tobj \
+                and "__code__" in tobj:
+            res = self.dict_to_func(tobj)
+        elif "class" in tobj \
+                and "vars" in tobj:
+            res = self.dict_to_obj(tobj)
+        elif "name" in tobj \
+                and "bases" in tobj \
+                and "dict" in tobj:
+            res = self.dict_to_class(tobj)
+        elif "staticmethod" in tobj:
+            res = staticmethod(self.dict_to_func(tobj["staticmethod"]))
+        elif "classmethod" in tobj:
+            res = classmethod(self.dict_to_func(tobj["classmethod"]))
+        else:
+            res = {}
+            for key, val in tobj.items():
+                res[key] = self._deserialize(val)
+        return res
+
+    def deserialize_tarr(self, tobj):
+        res = []
+        for el in tobj:
+            res.append(self._deserialize(el))
+        return type(tobj)(res)
+
+    def _deserialize(self, tobj):
+        if isinstance(tobj, dict):
+            res = self.deserialize_tobj(tobj)
+        elif isinstance(tobj, (list, tuple, set, frozenset)):
+            res = self.deserialize_tarr(tobj)
+        elif isinstance(tobj, str) and len(tobj) != 0:
+            if tobj[0] == '<' and tobj[-1] == '>':
+                tmp = tobj[1: -1].split(' ')
+                if len(tmp) == 3:
+                    module_name, type_name, name = tmp[0], tmp[1], tmp[2]
+                    if "built-in" == module_name:
+                        module = builtins
+                        if "function" == type_name or "class" == type_name:
+                            module_attr = getattr(module, name)
+                            return module_attr
+                    elif "recursive" == module_name:  # leave it as is
+                        return tobj
+                    else:
+                        module = __import__(module_name)
+                        module_attr = getattr(module, name)
+                        return module_attr
+                elif len(tmp) == 2:
+                    module_name = tmp[1]
+                    try:
+                        module = __import__(module_name)
+                        return module
+                    except ModuleNotFoundError:
+                        if module_name[0:2] == module_name[-2:] == '__':
+                            module = __import__(module_name[2:-2])
+                            return module
+                        else:
+                            raise NameError(f"No module {module_name} "
+                                            + "was found.")
+                else:
+                    res = tobj
+            else:
+                res = tobj
+        else:
+            res = tobj
+        return res
+
+    def loads(self, string):
+        if not isinstance(string, str):
+            raise AttributeError("Argument must be a string! "
+                                 + f"Type: {type(string)}")
+        toml_dict = self._deserialize(self._evalute(string))
+        return toml_dict["tvalue"]
+
+    def load(self, fname):
+        if not fname.endswith(".toml"):
+            raise AttributeError("File must have .toml extension!")
+        try:
+            with open(fname, "r") as fhandler:
+                text = fhandler.read()
+                obj = self.loads(text)
+                return obj
+        except FileNotFoundError as e:
+            print(e)
 
 
 # TESTING SECTION  #
@@ -579,6 +1020,13 @@ def main():
     )
     packer.dump(toml_weirdness, "output_weirdness.toml")
     packer.dump(ArithmeticError, "output_arithmError.toml")
+    des_weirdness = packer.load("output_weirdness.toml")
+    weird = des_weirdness
+    if weird[0][0]["func"](2, 3) == toml_weirdness[0][0]["func"](2, 3):
+        print("Lambdas okay.")
+    if weird[0][0]["more_weirdness"][3] == \
+            toml_weirdness[0][0]["more_weirdness"][3]:
+        print("Arithmetic error okay.")
 
 
 if __name__ == "__main__":

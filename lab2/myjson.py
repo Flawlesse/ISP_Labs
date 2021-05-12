@@ -289,14 +289,15 @@ class myjson:
             self._exception_notify(jstr, index)
             raise ValueError(f"This is not a number! Current index: {index}")
         end_index = index + 1
-        while True:
-            if not jstr[end_index].isdigit() \
-                and (jstr[end_index] != 'E'
-                     or jstr[end_index] != 'e' or jstr[end_index] != '+'
-                     or jstr[end_index] != '-' or jstr[end_index] != '.'):
-                break
-            end_index += 1
         try:
+            while True:
+                if not jstr[end_index].isdigit() \
+                    and (jstr[end_index] != 'E'
+                         or jstr[end_index] != 'e' or jstr[end_index] != '+'
+                         or jstr[end_index] != '-' or jstr[end_index] != '.'):
+                    break
+                end_index += 1
+
             jstr[end_index + 1]
             # check if we are at the very end of json string
         except IndexError:
@@ -311,9 +312,9 @@ class myjson:
                                      + f" is non-parsable!")
 
         if not jstr[end_index + 1].isdigit() \
-            and (jstr[end_index + 1] == ' '
-                 or jstr[end_index + 1] == '\n'
-                 or jstr[end_index + 1] == ','):
+                and jstr[end_index + 1] != 'E' \
+                and jstr[end_index + 1] != 'e' and jstr[end_index + 1] != '+' \
+                and jstr[end_index + 1] != '-' and jstr[end_index + 1] != '.':
             try:
                 return int(jstr[index: end_index]), end_index
             except ValueError:
@@ -371,7 +372,10 @@ class myjson:
                 lst.append(res)
         # On this stage we have the fully parsed array.
         # Now, we want to transfrom it to type needed.
-        # Don't forget to get rid of the first element!
+        # Don't forget to get rid of the first element! (if it exists)
+        if not lst:
+            return lst, index + 1
+
         if isinstance(lst[0], str):
             if lst[0] == "list":
                 lst = lst[1:]
@@ -630,6 +634,8 @@ class myjson:
                         else:
                             raise NameError(f"No module {module_name} "
                                             + "was found.")
+                else:
+                    res = jsonobj
             else:
                 res = jsonobj
         else:
@@ -637,9 +643,14 @@ class myjson:
         return res
 
     def loads(self, string):
+        if not isinstance(string, str):
+            raise AttributeError("Argument must be a string! "
+                                 + f"Type: {type(string)}")
         return self._deserialize(self._evaluate(string))
 
     def load(self, fname):
+        if not fname.endswith(".json"):
+            raise AttributeError("File must have .json extension!")
         try:
             with open(fname, "r") as fhandler:
                 text = fhandler.read()
