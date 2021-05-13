@@ -39,13 +39,13 @@ class mytoml:
                 else:
                     res += first_key + "."
         else:
-            raise ValueError("Arguments of key generator "
-                             + "must be strings!")
+            raise TypeError("Arguments of key generator "
+                            + "must be strings!")
 
         for el in args[1:]:
             if not isinstance(el, str):
-                raise AttributeError("Arguments of key generator "
-                                     + "must be strings!")
+                raise TypeError("Arguments of key generator "
+                                + "must be strings!")
             if "." in el or " " in el:
                 res += f"\"{el}\"."
             else:
@@ -138,8 +138,8 @@ class mytoml:
 
     def split_key(self, full_key):
         if not isinstance(full_key, str):
-            raise ValueError("Key must be a string!"
-                             + f"Actual type:{type(full_key)}")
+            raise TypeError("Key must be a string!"
+                            + f"Actual type:{type(full_key)}")
         key_seq, key_list = [], []
         dot_just_encountered = False
         complex_key_encountered = False
@@ -215,7 +215,7 @@ class mytoml:
                 clsdict[key] = {"staticmethod":
                                 self.func_to_dict(attrs[key].__func__)}
         return {"name": clsobj.__name__,
-                "bases": self._expand(bases),
+                "bases": self._expand(tuple(bases)),
                 "dict": self._expand(clsdict)}
 
     def obj_to_dict(self, obj):
@@ -271,7 +271,6 @@ class mytoml:
         return globs
 
     def func_to_dict(self, func):
-
         globs = {}
         globs.update(self.pull_from_code_to_func_globals(func.__code__, func))
 
@@ -463,14 +462,14 @@ class mytoml:
 
     def dump(self, obj, fname):
         if not fname.endswith(".toml"):
-            raise AttributeError("File must have .toml extension!")
+            raise NameError("File must have .toml extension!")
         with open(fname, "w") as fhandler:
             fhandler.write(self.dumps(obj))
 
     # DESERIALIZING SECTION #
     def make_special(self, string):
         if string[0] != '<' or string[-1] != '>':
-            raise AttributeError(f"String {string} isn't special.")
+            raise ValueError(f"String {string} isn't special.")
 
         if string[1: -1] == "None":
             return None
@@ -813,7 +812,7 @@ class mytoml:
     def dict_to_class(self, tobj):
         bases = self.deserialize_tarr(tobj["bases"])
         return type(tobj["name"],
-                    tuple(bases),
+                    bases,
                     self.deserialize_tobj(tobj["dict"]))
 
     def dict_to_obj(self, tobj):
@@ -921,12 +920,8 @@ class mytoml:
                         module = __import__(module_name)
                         return module
                     except ModuleNotFoundError:
-                        if module_name[0:2] == module_name[-2:] == '__':
-                            module = __import__(module_name[2:-2])
-                            return module
-                        else:
-                            raise NameError(f"No module {module_name} "
-                                            + "was found.")
+                        raise NameError(f"No module {module_name} "
+                                        + "was found.")
                 else:
                     res = tobj
             else:
@@ -937,14 +932,14 @@ class mytoml:
 
     def loads(self, string):
         if not isinstance(string, str):
-            raise AttributeError("Argument must be a string! "
-                                 + f"Type: {type(string)}")
+            raise TypeError("Argument must be a string! "
+                            + f"Type: {type(string)}")
         toml_dict = self._deserialize(self._evalute(string))
         return toml_dict["tvalue"]
 
     def load(self, fname):
         if not fname.endswith(".toml"):
-            raise AttributeError("File must have .toml extension!")
+            raise NameError("File must have .toml extension!")
         try:
             with open(fname, "r") as fhandler:
                 text = fhandler.read()

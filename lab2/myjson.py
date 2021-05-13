@@ -122,7 +122,9 @@ class myjson:
             elif isinstance(attrs[key], staticmethod):
                 clsdict[key] = {"staticmethod":
                                 self.func_to_dict(attrs[key].__func__)}
-        return {"name": clsobj.__name__, "bases": bases, "dict": clsdict}
+        return {"name": clsobj.__name__,
+                "bases": tuple(bases),
+                "dict": clsdict}
 
     def obj_to_dict(self, obj):
         if isinstance(obj, types.CodeType):
@@ -519,7 +521,7 @@ class myjson:
     def dict_to_class(self, jsonobj):
         bases = self.deserialize_jarr(jsonobj["bases"])
         return type(jsonobj["name"],
-                    tuple(bases),
+                    bases,
                     self.deserialize_jobj(jsonobj["dict"]))
 
     def dict_to_obj(self, jsonobj):
@@ -628,12 +630,8 @@ class myjson:
                         module = __import__(module_name)
                         return module
                     except ModuleNotFoundError:
-                        if module_name[0:2] == module_name[-2:] == '__':
-                            module = __import__(module_name[2:-2])
-                            return module
-                        else:
-                            raise NameError(f"No module {module_name} "
-                                            + "was found.")
+                        raise NameError(f"No module {module_name} "
+                                        + "was found.")
                 else:
                     res = jsonobj
             else:
@@ -644,13 +642,13 @@ class myjson:
 
     def loads(self, string):
         if not isinstance(string, str):
-            raise AttributeError("Argument must be a string! "
-                                 + f"Type: {type(string)}")
+            raise TypeError("Argument must be a string! "
+                            + f"Type: {type(string)}")
         return self._deserialize(self._evaluate(string))
 
     def load(self, fname):
         if not fname.endswith(".json"):
-            raise AttributeError("File must have .json extension!")
+            raise NameError("File must have .json extension!")
         try:
             with open(fname, "r") as fhandler:
                 text = fhandler.read()
