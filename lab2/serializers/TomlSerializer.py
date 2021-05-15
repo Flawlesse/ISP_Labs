@@ -2,12 +2,11 @@ import inspect
 import types
 import builtins
 import copy
-# from math import *
 import math
 from collections import deque
 
 
-class mytoml:
+class TomlSerializer:
     def __init__(self):
         self.builtin_fnames = [el[0] for el in
                                inspect.getmembers(builtins, inspect.isbuiltin)]
@@ -309,33 +308,18 @@ class mytoml:
 
         res = "["
         for el in tmplist:
-            # if isinstance(el, dict):
-            #    self.serialization_q.append(())
             res += " " + self._dumps(el) + ","
         res = res[:-1]  # gettin rid of the last comma
         res += " ]"
         return res
 
     def dumps_dict(self, dct):
-        # fullname is auto-generated sequence key1.key2.key3."key 4".key5
-        # and so on. If fullname is empty - that means we are
-        # on the top level dictionary.
-        # Else - we create table like this: [key1.key2.key3."key 4".key5].
-        # After we did that, we append all 'key = value' pairs down the road.
-        # After everything is done, add the last line: "\n".
-        # Let's just ensure ourselves that keys in tables
-        # cannot be complicated!
-        # Then [key1.key2."key 3".key4]
-        #      internal_key1.internal_key2 = ...
-        # is impossible.
         res = ""
         full_name = self.current_table_key
         if full_name:
             res = f"[{full_name}]\n"
 
         for key, val in dct.items():
-            # if " " in key or "." in key or '"' in key:
-            #     key = '"' + key + '"'
             if isinstance(val, dict):
                 self.serialization_q.append(
                     (
@@ -525,7 +509,7 @@ class mytoml:
             raise ValueError(f"Not a proper digit. String: {tstr}")
         return res, index
 
-    def _evalute(self, tstr):
+    def _evaluate(self, tstr):
         lines = tstr.split('\n')
         for i in range(len(lines)):
             lines[i] = lines[i].strip()
@@ -533,6 +517,8 @@ class mytoml:
         table_encountered = True
         self.current_table_key = ""
         toml_dict = dict()
+        if lines[0][0] == '[' and lines[0][-1] == ']':
+            table_encountered = False
         for line in lines:
             if not line:  # since we splitted on a '\n'
                 table_encountered = False  # signifies the end of table
@@ -562,10 +548,11 @@ class mytoml:
                 self.set_val(toml_dict, key, val)
 
         # do things to place all placeholders where needed !!!
-        toml_dict["tvalue"] = self._pullup_placeholders(
-            toml_dict["tvalue"],
-            toml_dict["placeholders"])
-        del toml_dict["placeholders"]  # we don't need this anymore
+        if "placeholders" in toml_dict:
+            toml_dict["tvalue"] = self._pullup_placeholders(
+                toml_dict["tvalue"],
+                toml_dict["placeholders"])
+            del toml_dict["placeholders"]  # we don't need this anymore
         return toml_dict
 
     def _pullup_placeholders(self, val, ph_dict):
@@ -934,19 +921,16 @@ class mytoml:
         if not isinstance(string, str):
             raise TypeError("Argument must be a string! "
                             + f"Type: {type(string)}")
-        toml_dict = self._deserialize(self._evalute(string))
+        toml_dict = self._deserialize(self._evaluate(string))
         return toml_dict["tvalue"]
 
     def load(self, fname):
         if not fname.endswith(".toml"):
             raise NameError("File must have .toml extension!")
-        try:
-            with open(fname, "r") as fhandler:
-                text = fhandler.read()
-                obj = self.loads(text)
-                return obj
-        except FileNotFoundError as e:
-            print(e)
+        with open(fname, "r") as fhandler:
+            text = fhandler.read()
+            obj = self.loads(text)
+            return obj
 
 
 # TESTING SECTION  #
@@ -988,40 +972,42 @@ class SA:
 
 
 def main():
-    packer = mytoml()
-    packer.dump(mul, "output_mul.toml")
-    packer.dump(SA, "output_SAclass.toml")
-    toml_weirdness = (
-        [
-            {
-                "func": lambda x, y: x**y,
-                "more_weirdness":
-                (
-                    [
-                        "string",
-                        SA,
-                        print,
-                        ArithmeticError,
-                        {
-                            "key 1": 59,
-                            "key2": math.sin,
-                            "key.3": "more weirdness.."
-                        }
-                    ]
-                )
-            },
-            "weird?"
-        ],
-    )
-    packer.dump(toml_weirdness, "output_weirdness.toml")
-    packer.dump(ArithmeticError, "output_arithmError.toml")
-    des_weirdness = packer.load("output_weirdness.toml")
-    weird = des_weirdness
-    if weird[0][0]["func"](2, 3) == toml_weirdness[0][0]["func"](2, 3):
-        print("Lambdas okay.")
-    if weird[0][0]["more_weirdness"][3] == \
-            toml_weirdness[0][0]["more_weirdness"][3]:
-        print("Arithmetic error okay.")
+    packer = TomlSerializer()
+    # packer.dump(mul, "output_mul.toml")
+    # packer.dump(SA, "output_SAclass.toml")
+    # toml_weirdness = (
+    #     [
+    #         {
+    #             "func": lambda x, y: x**y,
+    #             "more_weirdness":
+    #             (
+    #                 [
+    #                     "string",
+    #                     SA,
+    #                     print,
+    #                     ArithmeticError,
+    #                     {
+    #                         "key 1": 59,
+    #                         "key2": math.sin,
+    #                         "key.3": "more weirdness.."
+    #                     }
+    #                 ]
+    #             )
+    #         },
+    #         "weird?"
+    #     ],
+    # )
+    # packer.dump(toml_weirdness, "output_weirdness.toml")
+    # packer.dump(ArithmeticError, "output_arithmError.toml")
+    # des_weirdness = packer.load("output_weirdness.toml")
+    # weird = des_weirdness
+    # if weird[0][0]["func"](2, 3) == toml_weirdness[0][0]["func"](2, 3):
+    #     print("Lambdas okay.")
+    # if weird[0][0]["more_weirdness"][3] == \
+    #         toml_weirdness[0][0]["more_weirdness"][3]:
+    #     print("Arithmetic error okay.")
+    obj = packer.load("./serializers/config.toml")
+    print(obj)
 
 
 if __name__ == "__main__":

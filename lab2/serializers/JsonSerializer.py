@@ -1,11 +1,10 @@
 import inspect
 import types
 import builtins
-# from math import *
 import math
 
 
-class myjson:
+class JsonSerializer:
     def __init__(self, indent=4):
         self._indent = indent
         self.builtin_fnames = [el[0] for el in
@@ -649,13 +648,10 @@ class myjson:
     def load(self, fname):
         if not fname.endswith(".json"):
             raise NameError("File must have .json extension!")
-        try:
-            with open(fname, "r") as fhandler:
-                text = fhandler.read()
-                obj = self.loads(text)
-                return obj
-        except FileNotFoundError as e:
-            print(e)
+        with open(fname, "r") as fhandler:
+            text = fhandler.read()
+            obj = self.loads(text)
+            return obj
 
 
 # TESTING SECTION  #
@@ -680,9 +676,7 @@ class A:
 
     @classmethod
     def fact(cls, a):
-        # print(math.sqrt(a))
         print(math.sqrt(a))
-        # print(a)
         if a < 2:
             return 1
         return a * cls.fact(a - 1)
@@ -696,19 +690,19 @@ class A:
         print(a)
 
 
-class myclass:
+class MyClass:
     def __init__(self):
         self.a = 5
         self.b = "string"
         self.c = (3, 2, [23, "another string"],)
         self.d = A()
-        print("Constructor of myclass called!")
+        print("Constructor of MyClass called!")
 
 
 def main():
-    packer = myjson(2)
+    packer = JsonSerializer(2)
     # dis.dis(mul)
-    obj = myjson
+    obj = JsonSerializer
     packer.dump(obj, "output4.json")
     p = packer.load("output4.json")
     new_packer = p(2)
@@ -741,10 +735,10 @@ def main():
     # dis.dis(new_packer.parse_jstring)
     # packer = new_packer
 
-    obj1 = myclass()
+    obj1 = MyClass()
     packer.dump(obj1, "output1.json")
 
-    cls1 = myclass
+    cls1 = MyClass
     packer.dump(cls1, "output2.json")
 
     obj = packer.load("output1.json")

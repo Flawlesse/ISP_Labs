@@ -3,10 +3,10 @@ import types
 import builtins
 import copy
 import math
-import yaml
+import pickle
 
 
-class myyaml:
+class PickleSerializer:
     # SERIALIZING SECTION #
     def __init__(self):
         self.builtin_fnames = [el[0] for el in
@@ -168,12 +168,12 @@ class myyaml:
 
     def dumps(self, obj):
         t_obj = copy.deepcopy(obj)
-        return yaml.dump(self._expand(t_obj))
+        return pickle.dumps(self._expand(t_obj))
 
     def dump(self, obj, fname):
-        if not fname.endswith(".yaml"):
-            raise NameError("File must have .yaml extension!")
-        with open(fname, "w") as fhandler:
+        if not fname.endswith(".pickle"):
+            raise NameError("File must have .pickle extension!")
+        with open(fname, "wb") as fhandler:
             fhandler.write(self.dumps(obj))
 
     # DESERIALIZING SECTION #
@@ -339,22 +339,19 @@ class myyaml:
                                  tuple(obj["co_cellvars"]))
         return codeobj
 
-    def loads(self, ystr):
-        if not isinstance(ystr, str):
-            raise TypeError("Argument must be a string! "
-                            + f"Type: {type(ystr)}")
-        return self._deserialize(yaml.load(ystr.encode(), yaml.Loader))
+    def loads(self, byte_seq):
+        if not isinstance(byte_seq, bytes):
+            raise TypeError("Argument must be bytes! "
+                            + f"Type: {type(byte_seq)}")
+        return self._deserialize(pickle.loads(byte_seq))
 
     def load(self, fname):
-        if not fname.endswith(".yaml"):
-            raise NameError("File must have .yaml extension!")
-        try:
-            with open(fname, "r") as fhandler:
-                text = fhandler.read()
-                obj = self.loads(text)
-                return obj
-        except FileNotFoundError as e:
-            print(e)
+        if not fname.endswith(".pickle"):
+            raise NameError("File must have .pickle extension!")
+        with open(fname, "rb") as fhandler:
+            byte_seq = fhandler.read()
+            obj = self.loads(byte_seq)
+            return obj
 
 
 # TESTING SECTION  #
@@ -389,16 +386,16 @@ class A:
 class SA:
     def __init__(self):
         self.a = 5
-        self.b = "string"
-        self.c = (3, 2, [23, "another string"],)
+        self.b = "byte_seq"
+        self.c = (3, 2, [23, "another byte_seq"],)
         self.d = A()
         print("Constructor of myclass called!")
 
 
 def main():
-    packer = myyaml()
-    packer.dump(mul, "output_mul.yaml")
-    packer.dump(SA, "output_SAclass.yaml")
+    packer = PickleSerializer()
+    packer.dump(mul, "output_mul.pickle")
+    packer.dump(SA, "output_SAclass.pickle")
     pickle_weirdness = (
         [
             {
@@ -406,7 +403,7 @@ def main():
                 "more_weirdness":
                 (
                     [
-                        "string",
+                        "byte_seq",
                         SA,
                         print,
                         ArithmeticError,
@@ -421,9 +418,9 @@ def main():
             "weird?"
         ],
     )
-    packer.dump(pickle_weirdness, "output_weirdness.yaml")
-    packer.dump(ArithmeticError, "output_arithmError.yaml")
-    des_weirdness = packer.load("output_weirdness.yaml")
+    packer.dump(pickle_weirdness, "output_weirdness.pickle")
+    packer.dump(ArithmeticError, "output_arithmError.pickle")
+    des_weirdness = packer.load("output_weirdness.pickle")
     weird = des_weirdness
     if weird[0][0]["func"](2, 3) == pickle_weirdness[0][0]["func"](2, 3):
         print("Lambdas okay.")
