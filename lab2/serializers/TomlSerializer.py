@@ -643,48 +643,97 @@ class TomlSerializer:
         return res, end_index + 1
 
     def parse_tdigit(self, tstr, index):
-        if not (tstr[index].isdigit() or tstr[index] == '-'
-                or tstr[index] == '+'):
-            raise ValueError(f"This is not a number! String: {tstr}")
-        end_index = index + 1
+        if tstr[index] != '-' and tstr[index] != '+' \
+                and not tstr[index].isdigit():
+            raise ValueError(f"This is not a number! Current index: {index}")
+
+        end_index = index
+
+        possible_digits = set([str(i) for i in range(10)])
+        possible_chars = set(['.', '-', '+', 'E'])
+        # these two will regulate the rules of the next appearing symbol
+        e_encountered = False
+        dot_encountered = False
         try:
-            while True:
-                if not tstr[end_index].isdigit() \
-                        and tstr[end_index] != 'E' \
-                        and tstr[end_index] != 'e' and tstr[end_index] != '+' \
-                        and tstr[end_index] != '-' and tstr[end_index] != '.':
-                    break
+            curr_char = tstr[end_index]
+            while curr_char.upper() in possible_chars \
+                    or curr_char in possible_digits:
+
+                if not (curr_char.isdigit() or curr_char in "-+eE."):
+                    raise ValueError("This is not a valid digit! " +
+                                     f"Result: {tstr[index: end_index]}")
+
+                if curr_char.upper() in possible_chars:
+                    if curr_char in "-+":
+                        possible_chars.clear()
+                        possible_digits.update(*[str(i) for i in range(10)])
+                        # nothing except digits will appear
+                    elif curr_char in "eE":
+                        if e_encountered:
+                            raise ValueError(
+                                "This is not a valid digit! " +
+                                f"Result: {tstr[index: end_index]}")
+                        e_encountered = True
+                        try:
+                            possible_chars.remove('E')
+                            possible_chars.remove('.')
+                        except KeyError:
+                            pass
+                        possible_chars.add('+')
+                        possible_chars.add('-')
+                        # after E there can only be sign or digit
+                    elif curr_char == '.':
+                        if dot_encountered:
+                            raise ValueError(
+                                "This is not a valid digit!" +
+                                f" Result: {tstr[index: end_index]}")
+                    dot_encountered = True
+                    possible_chars.clear()
+                    possible_digits.update(*[str(i) for i in range(10)])
+                    # after a dot there can only be digits
+
+                elif curr_char in possible_digits:
+                    if curr_char == '0' \
+                            and end_index > 0 \
+                            and not tstr[end_index - 1].isdigit():
+                        if 'E' in possible_chars:
+                            possible_digits.clear()
+                    if not e_encountered:
+                        possible_chars.add('E')
+                    if not dot_encountered:
+                        possible_chars.add('.')
+                    try:
+                        possible_chars.remove('-')
+                        possible_chars.remove('+')
+                    except KeyError:
+                        pass
                 end_index += 1
-
-            tstr[end_index + 1]
-            # check if we are at the very end of toml string
+                curr_char = tstr[end_index]
         except IndexError:
-            try:
-                return int(tstr[index: end_index].strip()), end_index
-            except ValueError:
-                try:
-                    return float(tstr[index: end_index].strip()), end_index
-                except ValueError:
-                    raise ValueError(f"Digit like this \""
-                                     + f"{tstr[index: end_index]}\""
-                                     + f" is non-parsable!")
+            end_index -= 1
 
-        if not tstr[end_index + 1].isdigit() \
-                and tstr[end_index + 1] != 'E' \
-                and tstr[end_index + 1] != 'e' and tstr[end_index + 1] != '+' \
-                and tstr[end_index + 1] != '-' and tstr[end_index + 1] != '.':
-            try:
-                return int(tstr[index: end_index].strip()), end_index
-            except ValueError:
-                try:
-                    return float(tstr[index: end_index].stip()), end_index
-                except ValueError:
-                    raise ValueError(f"Digit like this \""
-                                     + f"{tstr[index: end_index]}\""
-                                     + f" is non-parsable!")
-        raise ValueError(f"Digit like this \""
-                         + f"{tstr[index: end_index + 1]}\""
-                         + f" is non-parsable!")
+        res = tstr[index: end_index + 1]
+        if not res[-1].isdigit() and not res[-1] in "-+eE.":
+            res = res[: -1]
+            end_index -= 1
+
+        type_of_digit = int
+        if not res:
+            raise ValueError(f"This is not a valid digit! Result: {res}")
+        if any(map(lambda x: x in res, ['.', 'e', 'E'])):
+            type_of_digit = float
+        if len(res) > 2:
+            if res[0] in "-+":
+                if res[1] == '0' and res[2].isdigit() and res[2] != '0':
+                    raise ValueError("This is not a valid digit!" +
+                                     f" Result: {res}")
+        elif len(res) == 2:
+            if res[0] == '0' and res[1].isdigit() and res[1] != '0':
+                raise ValueError(f"This is not a valid digit! Result: {res}")
+
+        if res[-1] in "-+eE." or res[0] in "eE" or res[0: 2] == "00":
+            raise ValueError(f"This is not a valid digit! Result: {res}")
+        return type_of_digit(res), end_index + 1
 
     def parse_tarray(self, tstr, index):
         if tstr[index] != '[':
