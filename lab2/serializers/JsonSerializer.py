@@ -1,7 +1,6 @@
 import inspect
 import types
 import builtins
-import math
 
 
 class JsonSerializer:
@@ -189,6 +188,9 @@ class JsonSerializer:
         elif obj is None:
             return "null"
         elif inspect.isclass(obj):
+            if obj.__name__ in self.builtin_cnames:
+                # built-in class, like exceptions
+                return f"\"<built-in class {obj.__name__}>\""
             return self.dumps_dict(self.cls_to_dict(obj), level + 1)
         elif isinstance(obj, types.CellType):   # for closures
             return self.dumps(obj.cell_contents)
@@ -472,7 +474,8 @@ class JsonSerializer:
         globs = {}
         for key, val in jsonobj["__globals__"].items():
             if isinstance(val, str):
-                if "built-in function" in val:
+                if "built-in function" in val \
+                        or "built-in class" in val:
                     globs[key] = getattr(builtins, key)
                     continue
             globs[key] = self._deserialize(val)
@@ -609,9 +612,11 @@ class JsonSerializer:
             res = self.deserialize_jarr(jsonobj)
         elif isinstance(jsonobj, str) and len(jsonobj) != 0:
             if jsonobj[0] == '<' and jsonobj[-1] == '>':
-                tmp = jsonobj[1: -1].split(' ')
-                if len(tmp) == 3:
-                    module_name, type_name, name = tmp[0], tmp[1], tmp[2]
+                tokens = jsonobj[1: -1].split(' ')
+                if len(tokens) == 3:
+                    module_name, type_name, name = \
+                        tokens[0], tokens[1], tokens[2]
+
                     if "built-in" == module_name:
                         module = builtins
                         if "function" == type_name or "class" == type_name:
@@ -623,8 +628,8 @@ class JsonSerializer:
                         module = __import__(module_name)
                         module_attr = getattr(module, name)
                         return module_attr
-                elif len(tmp) == 2:
-                    module_name = tmp[1]
+                elif len(tokens) == 2:
+                    module_name = tokens[1]
                     try:
                         module = __import__(module_name)
                         return module
@@ -654,99 +659,10 @@ class JsonSerializer:
             return obj
 
 
-# TESTING SECTION  #
-def mul(a):  # closure
-    def helper(b):
-        print(a*b)
-        print(math.sqrt(a*b))
-    return helper
-
-
-def fact(a):
-    print(math.sqrt(a))
-    if a < 2:
-        return 1
-    return a * fact(a - 1)
-
-
-class A:
-    def __init__(self):
-        self.prop1 = 7
-        self.prop2 = [12, 13, 14]
-
-    @classmethod
-    def fact(cls, a):
-        print(math.sqrt(a))
-        if a < 2:
-            return 1
-        return a * cls.fact(a - 1)
-
-    @classmethod
-    def cmeth(cls, b):
-        print(cls.fact)
-
-    @staticmethod
-    def smeth(a):
-        print(a)
-
-
-class MyClass:
-    def __init__(self):
-        self.a = 5
-        self.b = "string"
-        self.c = (3, 2, [23, "another string"],)
-        self.d = A()
-        print("Constructor of MyClass called!")
-
-
 def main():
-    packer = JsonSerializer(2)
-    # dis.dis(mul)
-    obj = JsonSerializer
-    packer.dump(obj, "output4.json")
-    p = packer.load("output4.json")
-    new_packer = p(2)
-
-    obj = packer.load("output3.json")
-    print(obj)
-
-    packer = new_packer
-
-    obj = packer.load("output3.json")
-    print(obj)
-
-    print(packer.dumps(mul))
-    s = packer.dumps(mul)
-    packer.dump(mul, "output_mul.json")
-    f = packer.loads(s)
-    times4 = f(4)
-    print(times4(5))
-    times4 = mul(4)
-    # dis.dis(times4)
-
-    s = packer.dumps(times4)
+    json = JsonSerializer(2)
+    s = json.dumps(ArithmeticError)
     print(s)
-    f = packer.loads(s)
-    print(f(5))
-
-    # print("Old packer.parse_jstring:")
-    # dis.dis(packer.parse_jstring)
-    # print("\nNew packer.parse_jstring:")
-    # dis.dis(new_packer.parse_jstring)
-    # packer = new_packer
-
-    obj1 = MyClass()
-    packer.dump(obj1, "output1.json")
-
-    cls1 = MyClass
-    packer.dump(cls1, "output2.json")
-
-    obj = packer.load("output1.json")
-    print(type(obj.d).fact(5))
-    obj.d.smeth(54)
-    type(obj.d).smeth([13, (2, "aa")])
-
-    print(packer.dumps(fact))
 
 
 if __name__ == "__main__":

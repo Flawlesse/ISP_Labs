@@ -263,7 +263,8 @@ class PickleSerializer:
         globs = {}
         for key, val in obj["__globals__"].items():
             if isinstance(val, str):
-                if "built-in function" in val:
+                if "built-in function" in val \
+                        or "built-in class" in val:
                     globs[key] = getattr(builtins, key)
                     continue
             globs[key] = self._deserialize(val)
@@ -352,82 +353,3 @@ class PickleSerializer:
             byte_seq = fhandler.read()
             obj = self.loads(byte_seq)
             return obj
-
-
-# TESTING SECTION  #
-def mul(a):  # closure
-    def helper(b):
-        print(a*b)
-        print(math.sqrt(a*b))
-    return helper
-
-
-class A:
-    def __init__(self):
-        self.prop1 = 7
-        self.prop2 = [12, 13, 14]
-
-    @classmethod
-    def fact(cls, a):
-        print(math.sqrt(a))
-        if a < 2:
-            return 1
-        return a * cls.fact(a - 1)
-
-    @classmethod
-    def cmeth(cls, b):
-        print(cls.fact)
-
-    @staticmethod
-    def smeth(a):
-        print(a)
-
-
-class SA:
-    def __init__(self):
-        self.a = 5
-        self.b = "byte_seq"
-        self.c = (3, 2, [23, "another byte_seq"],)
-        self.d = A()
-        print("Constructor of myclass called!")
-
-
-def main():
-    packer = PickleSerializer()
-    packer.dump(mul, "output_mul.pickle")
-    packer.dump(SA, "output_SAclass.pickle")
-    pickle_weirdness = (
-        [
-            {
-                "func": lambda x, y: x**y,
-                "more_weirdness":
-                (
-                    [
-                        "byte_seq",
-                        SA,
-                        print,
-                        ArithmeticError,
-                        {
-                            "key 1": 59,
-                            "key2": math.sin,
-                            "key.3": "more weirdness.."
-                        }
-                    ]
-                )
-            },
-            "weird?"
-        ],
-    )
-    packer.dump(pickle_weirdness, "output_weirdness.pickle")
-    packer.dump(ArithmeticError, "output_arithmError.pickle")
-    des_weirdness = packer.load("output_weirdness.pickle")
-    weird = des_weirdness
-    if weird[0][0]["func"](2, 3) == pickle_weirdness[0][0]["func"](2, 3):
-        print("Lambdas okay.")
-    if weird[0][0]["more_weirdness"][3] == \
-            pickle_weirdness[0][0]["more_weirdness"][3]:
-        print("Arithmetic error okay.")
-
-
-if __name__ == "__main__":
-    main()

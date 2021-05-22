@@ -2,8 +2,9 @@ import inspect
 import types
 import builtins
 import copy
-import math
 from collections import deque
+
+from yaml import tokens
 
 
 class TomlSerializer:
@@ -465,8 +466,9 @@ class TomlSerializer:
             elif tokens[0] == 'module':
                 return __import__(tokens[1])
         elif len(tokens) == 3:
-            if tokens[1] == "function" \
-                    or tokens[1] == "class":
+            if tokens[0] != "recursive" and \
+                    (tokens[1] == "function"
+                     or tokens[1] == "class"):
                 if tokens[0] == "built-in":
                     module = builtins
                 else:
@@ -751,7 +753,8 @@ class TomlSerializer:
         globs = {}
         for key, val in tobj["__globals__"].items():
             if isinstance(val, str):
-                if "built-in function" in val:
+                if "built-in function" in val \
+                        or "built-in class" in val:
                     globs[key] = getattr(builtins, key)
                     continue
             globs[key] = self._deserialize(val)
@@ -887,9 +890,11 @@ class TomlSerializer:
             res = self.deserialize_tarr(tobj)
         elif isinstance(tobj, str) and len(tobj) != 0:
             if tobj[0] == '<' and tobj[-1] == '>':
-                tmp = tobj[1: -1].split(' ')
-                if len(tmp) == 3:
-                    module_name, type_name, name = tmp[0], tmp[1], tmp[2]
+                tokens = tobj[1: -1].split(' ')
+                if len(tokens) == 3:
+                    module_name, type_name, name = \
+                        tokens[0], tokens[1], tokens[2]
+
                     if "built-in" == module_name:
                         module = builtins
                         if "function" == type_name or "class" == type_name:
@@ -901,8 +906,8 @@ class TomlSerializer:
                         module = __import__(module_name)
                         module_attr = getattr(module, name)
                         return module_attr
-                elif len(tmp) == 2:
-                    module_name = tmp[1]
+                elif len(tokens) == 2:
+                    module_name = tokens[1]
                     try:
                         module = __import__(module_name)
                         return module
@@ -931,84 +936,3 @@ class TomlSerializer:
             text = fhandler.read()
             obj = self.loads(text)
             return obj
-
-
-# TESTING SECTION  #
-def mul(a):  # closure
-    def helper(b):
-        print(a*b)
-        print(math.sqrt(a*b))
-    return helper
-
-
-class A:
-    def __init__(self):
-        self.prop1 = 7
-        self.prop2 = [12, 13, 14]
-
-    @classmethod
-    def fact(cls, a):
-        print(math.sqrt(a))
-        if a < 2:
-            return 1
-        return a * cls.fact(a - 1)
-
-    @classmethod
-    def cmeth(cls, b):
-        print(cls.fact)
-
-    @staticmethod
-    def smeth(a):
-        print(a)
-
-
-class SA:
-    def __init__(self):
-        self.a = 5
-        self.b = "string"
-        self.c = (3, 2, [23, "another string"],)
-        self.d = A()
-        print("Constructor of myclass called!")
-
-
-def main():
-    packer = TomlSerializer()
-    # packer.dump(mul, "output_mul.toml")
-    # packer.dump(SA, "output_SAclass.toml")
-    # toml_weirdness = (
-    #     [
-    #         {
-    #             "func": lambda x, y: x**y,
-    #             "more_weirdness":
-    #             (
-    #                 [
-    #                     "string",
-    #                     SA,
-    #                     print,
-    #                     ArithmeticError,
-    #                     {
-    #                         "key 1": 59,
-    #                         "key2": math.sin,
-    #                         "key.3": "more weirdness.."
-    #                     }
-    #                 ]
-    #             )
-    #         },
-    #         "weird?"
-    #     ],
-    # )
-    # packer.dump(toml_weirdness, "output_weirdness.toml")
-    # packer.dump(ArithmeticError, "output_arithmError.toml")
-    # des_weirdness = packer.load("output_weirdness.toml")
-    # weird = des_weirdness
-    # if weird[0][0]["func"](2, 3) == toml_weirdness[0][0]["func"](2, 3):
-    #     print("Lambdas okay.")
-    # if weird[0][0]["more_weirdness"][3] == \
-    #         toml_weirdness[0][0]["more_weirdness"][3]:
-    #     print("Arithmetic error okay.")
-    obj = packer.load("./serializers/config.toml")
-    print(obj)
-
-
-if __name__ == "__main__":
-    main()
