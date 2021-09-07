@@ -1,0 +1,103 @@
+{% extends 'orders/base.html' %}
+
+{% block content %}
+<main>
+    <div class="order-section">
+        <div class="order" style="border: 2px solid black;">
+            <div class="action-order-group">
+                {% if can_edit_order %}
+                <span class="order-edit-option">
+                    <a href="{% url 'orders:update' order_uuid=order.id %}"><i class="fas fa-edit"></i></a>
+                    <a href="{% url 'orders:delete' order_uuid=order.id %}" class="order-delete-link"><i class="fas fa-trash"></i></a>
+                </span>
+                {% endif %}
+                {% if can_accept_order %}
+                <span class="order-accept-option">
+                    <a href="{% url 'orders:accept' order_uuid=order.id %}"><i class="fas fa-plus-circle"></i></a>
+                </span>
+                {% endif %}
+            </div>
+            <p>Заказчик: <a href="{% url 'user_accounts:info' username=order.author.username %}">{{ order.author.username }}</a></p>
+            <p>{{ order.title|upper }}</p>
+            <p>Описание:<br>{{ order.description }}</p>
+            <p>Дата выставления заказа: {{ order.date_posted|date:"N, l d-m-Y, G:i"}}</p>
+            <p>Цена заказа: ${{ order.price}}</p>
+            <div class="pick-wallet-group" style="border: 2px solid red;">
+                <p>Кошелёк исполнителя:
+                    {% if can_pick_executor_wallet %}
+                    <select id="select-executor-wallet" onchange="pop_up_confirm_button('select-executor-wallet');">
+                        {% if order.executor_wallet %}
+                        <option value="none">Не предоставлен.</option>
+                        {% else %}
+                        <option value="none" selected></option>
+                        {% endif %}
+    
+                        {% for wallet in user.account.wallets %}
+                            {% if order.executor_wallet and wallet.id == order.executor_wallet.id %}
+                            <option value="{{wallet.id}}" selected>{{ wallet.name }} ${{ wallet.money }}</option>
+                            {% else %}
+                                {% if order.orderer_wallet and wallet.id == order.orderer_wallet.id %}
+                                {% else %}
+                                <option value="{{wallet.id}}">{{ wallet.name }} ${{ wallet.money }}</option>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                        {% if order.executor_wallet %}
+                        <a href="{% url 'user_accounts:wallet_detail' wallet_uuid=order.executor_wallet.id %}">${{ order.executor_wallet.money }}</a>$
+                        {% else %}
+                        Не предоставлен.
+                        {% endif %}
+                    {% endif %}
+                </p>
+                <p>Кошелёк заказчика:
+                    {% if can_pick_orderer_wallet %}
+                    <select id="select-orderer-wallet" onchange="pop_up_confirm_button('select-orderer-wallet');">
+                        {% if order.orderer_wallet %}
+                        <option value="none">Не предоставлен.</option>
+                        {% else %}
+                        <option value="none" selected></option>
+                        {% endif %}
+    
+                        {% for wallet in user.account.wallets %}
+                            {% if order.orderer_wallet and wallet.id == order.orderer_wallet.id %}
+                            <option value="{{wallet.id}}" selected>{{ wallet.name }} ${{ wallet.money }}</option>
+                            {% else %}
+                                {% if order.executor_wallet and wallet.id == order.executor_wallet.id %}
+                                {% else %}
+                                <option value="{{wallet.id}}">{{ wallet.name }} ${{ wallet.money }}</option>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                        {% if order.orderer_wallet %}
+                        <a href="{% url 'user_accounts:wallet_detail' wallet_uuid=order.orderer_wallet.id %}">${{ order.orderer_wallet.money }}</a>
+                        {% else %}
+                        Не предоставлен.
+                        {% endif %}
+                    {% endif %}
+                </p>
+            </div> 
+        </div>
+    </div>
+</main>
+<script>
+    let is_popped_up = false;
+    function pop_up_confirm_button(id){
+        order_section = document.querySelector('.order-section');
+        button_confirm = document.createElement('button');
+        button_confirm.setAttribute("type", "button");
+        button_confirm.setAttribute("id", "confirm-wallet-btn");
+        
+        const active_select = document.getElementById(id);
+
+        link = document.createElement('a');
+        link.setAttribute("href", "{%  %}")
+
+        button_confirm.appendChild(link);
+        order_section.appendChild(button_confirm);
+    }
+</script>
+{% endblock %}

@@ -1,6 +1,3 @@
-from django.contrib.auth.forms import (
-    AuthenticationForm,
-)
 from django import forms
 from django.core.exceptions import ValidationError
 from django.forms.models import ModelForm
@@ -24,10 +21,12 @@ class AccountSignupForm(ModelForm):
     first_name = forms.CharField(
         label='Ваше имя:',
         max_length=150,
+        required=False
     )
     last_name = forms.CharField(
         label='Ваша фамилия:',
         max_length=150,
+        required=False
     )
     password1 = forms.CharField(widget=forms.PasswordInput(),
                                 label='Введите пароль:',
@@ -44,9 +43,9 @@ class AccountSignupForm(ModelForm):
             'username',
             'first_name',
             'last_name',
-            'email',
-            'password1',
-            'password2',
+            'email',  # NO IN UPDATE
+            'password1',  # NO IN UPDATE
+            'password2',  # NO IN UPDATE
             'phone_number',
             'about',
             'profile_pic',
@@ -87,19 +86,73 @@ class AccountSignupForm(ModelForm):
         return password2
 
 
-class AccountLoginForm(AuthenticationForm):
-    class Meta:
-        model = User
+class AccountLoginForm(forms.Form):
+    username = forms.CharField(
+        label='Логин:',
+        max_length=40,
+        validators=[username_validator],
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(),
+        label='Пароль:',
+        strip=False,
+        validators=[password_validator]
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data['username']
+        try:
+            UserAccount.objects.get(user__username=username)
+        except UserAccount.DoesNotExist:
+            print("Аккаунта с таким именем пользователя не существует.")
+            raise ValidationError(
+                "Аккаунта с таким именем пользователя не существует."
+            )
+        return username
+
+    # this goes after clean_username()
+    def clean_password(self):
+        password = self.cleaned_data['password']
+        try:
+            username = self.cleaned_data['username']
+        except KeyError:
+            return password
+        user = User.objects.get(username=username)
+        if not user.check_password(password):
+            print("Неверный пароль от аккаунта.")
+            raise ValidationError(
+                "Неверный пароль от аккаунта."
+            )
+        return password
+
+    def get_user(self):
+        if self.is_valid():
+            print('Form is valid!')
+            return User.objects.get(username=self.cleaned_data['username'])
+        else:
+            print('Form is INvalid!')
+            return None
 
 
-# widget=forms.PasswordInput(attrs={'autocomplete': 'current-password'})
 class AccountUpdateForm(AccountSignupForm):
-    class Meta(AccountSignupForm.Meta):
-        exclude = ('password1', 'password2', 'thumbnail', 'wallets')
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request')
+        super().__init__(*args, **kwargs)
+        self.fields.pop('password1')
+        self.fields.pop('password2')
+        self.fields.pop('email')
 
-
-class AccountDetailForm(ModelForm):
-    class Meta:
-        model = UserAccount
-        fields = '__all__'
-        exclude = ('user', )
+    def clean_username(self):
+        username = self.cleaned_data['username']
+        try:
+            user = User.objects.get(username=username)
+            print("User:", user)
+            if (self.request.user.username == username):
+                # we want to keep data unchanged too
+                raise User.DoesNotExist
+            raise ValidationError(
+                "Пользователь с таким именем уже существует!"
+            )
+        except User.DoesNotExist:
+            pass
+        return username

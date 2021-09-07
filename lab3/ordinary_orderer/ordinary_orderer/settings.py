@@ -27,7 +27,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -77,7 +76,7 @@ WSGI_APPLICATION = 'ordinary_orderer.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'ordinary_orderer_db',
         'USER': 'akado',
         'PASSWORD': 'akado',
@@ -130,6 +129,8 @@ STATIC_ROOT = Path.joinpath(BASE_DIR, 'static')
 MEDIA_URL = '/media/'
 
 MEDIA_ROOT = Path.joinpath(BASE_DIR, 'media')
+
+DEFAULT_IMAGE_URL = 'no_pic.jpeg'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field

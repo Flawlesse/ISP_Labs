@@ -23,13 +23,14 @@ from django.urls.conf import include
 
 
 def index(request):
-    return redirect('user_accounts:login')
+    return redirect('orders:show')
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', index),
+    path('', index, name='index'),
     path('accounts/', include('user_accounts.urls')),
+    path('orders/', include('orders.urls')),
 ]
 
 

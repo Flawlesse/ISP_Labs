@@ -1,39 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Signup page</title>
-  </head>
-  <style>
-    .errorlist {
-      list-style-type: none;
-      margin-left: 0.5%;
-      padding-left: 0.5%;
-      background-color: rgba(252, 5, 5, 0.392);
-      font-family: "Lucida Sans", "Lucida Sans Regular", "Lucida Grande",
-        "Lucida Sans Unicode", Geneva, Verdana, sans-serif;
-      color: indigo;
-    }
-  </style>
-  <body>
-    <form action="" method="POST" enctype="multipart/form-data">
-      {% csrf_token %} 
-      {{ signup_form.as_p }}
-      <button type="submit" class="submit_btn" id="submit_btn">Подтвердить</button>
-    </form>
+{% extends 'orders/base.html' %}
 
-    <!-- SCRIPTS -->
-    <script>
-      window.addEventListener("DOMContentLoaded", () => {
-        setTimeout(function () {
-          errors = document.querySelectorAll(".errorlist");
-          errors.forEach((element) => {
-            element.style.display = "none";
-          });
-        }, 5000);
-      });
-    </script>
-  </body>
-</html>
+{% block content %}
+<form action="" method="POST" enctype="multipart/form-data">
+  {% csrf_token %} 
+  {{ form.as_p }}
+  <button type="submit" class="submit_btn" id="submit_btn">Подтвердить</button>
+</form>
+{% endblock %}

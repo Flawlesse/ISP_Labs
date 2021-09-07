@@ -3,21 +3,21 @@ from django.db import models
 from django.db.models.fields import DecimalField
 from proj_helpers.uuid_model import AbstractUUIDModel
 from proj_helpers.order_state import OrderState
-from user_accounts.models import UserAccount
 from decimal import Decimal
 from user_accounts.models import Wallet
+from django.contrib.auth.models import User
 
 
 # Create your models here.
 class Order(AbstractUUIDModel):
     author = models.ForeignKey(
-        UserAccount,
+        User,
         on_delete=models.CASCADE,
         editable=False,
         null=False
     )
     executor = models.OneToOneField(
-        UserAccount,
+        User,
         null=True,
         editable=False,
         on_delete=models.SET_NULL,
@@ -36,6 +36,7 @@ class Order(AbstractUUIDModel):
     )
     orderer_wallet = models.OneToOneField(
         Wallet,
+        to_field='id',
         on_delete=models.SET_NULL,
         null=True,
         editable=False,
@@ -43,6 +44,7 @@ class Order(AbstractUUIDModel):
     )
     executor_wallet = models.OneToOneField(
         Wallet,
+        to_field='id',
         on_delete=models.SET_NULL,
         null=True,
         editable=False,
