@@ -5,7 +5,9 @@ from . import views
 urlpatterns = [    
     path('accounts/', views.AccountListAPIView.as_view(), name='index'),
     path('accounts/register/', views.RegisterAPIView.as_view()),
+    path('accounts/login/', views.obtain_auth_token),
     path('accounts/<str:username>/', views.DisplayUpdateDeleteAccountAPIView.as_view()),
+    path('profile/', views.get_current_account_detail),
     
     path('orders/', views.ListCreateOrderAPIView.as_view()),
     path('orders/<uuid:id>/', views.DisplayUpdateDeleteOrderAPIView.as_view()),

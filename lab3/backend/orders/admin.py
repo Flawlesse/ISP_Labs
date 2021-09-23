@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.auth.models import User
 from .models import Order, Account, Wallet
 from .forms import AccountCreationForm
 from django.contrib.auth.admin import UserAdmin
@@ -22,7 +23,6 @@ class AccountAdmin(UserAdmin):
             }
         )
     )
-
 
 admin.site.register(Account, AccountAdmin)
 admin.site.register(Order)

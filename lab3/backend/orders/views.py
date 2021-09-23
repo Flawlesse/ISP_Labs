@@ -24,7 +24,9 @@ from django.contrib.auth import get_user_model, logout
 from rest_framework.decorators import (
     api_view, permission_classes, authentication_classes
 )
+from rest_framework.authtoken.models import Token
 from rest_framework.authentication import TokenAuthentication
+from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.pagination import PageNumberPagination
 from proj_helpers.transaction import Transaction, TransactionError
 from proj_helpers.order_perms import get_permissions_for_order
@@ -37,7 +39,8 @@ class AccountListAPIView(ListAPIView):
 
 
 class DisplayUpdateDeleteAccountAPIView(APIView):
-    permission_classes = [IsSameUserAccountOrReadonly]
+    permission_classes = [IsSameUserAccountOrReadonly, ]
+    authentication_classes = [TokenAuthentication, ]
     parser_classes = [MultiPartParser, FormParser, ]
     queryset = Account.objects.all()
 
@@ -69,6 +72,7 @@ class DisplayUpdateDeleteAccountAPIView(APIView):
         if hasattr(account, 'current_order'):
             if hasattr(account.current_order, 'executor_wallet'):
                 account.current_order.executor_wallet = None
+                account.current_order.save()
 
         logout(request)
         account.delete()
@@ -77,25 +81,42 @@ class DisplayUpdateDeleteAccountAPIView(APIView):
 
 class RegisterAPIView(CreateAPIView):
     serializer_class = RegistrationSerializer
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, ]
 
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        account = get_user_model().objects.get(username=response.data['username'])
+        data = {}
+        data['token'] = Token.objects.get(user=account).key
+        return Response(data)
+
+
+@api_view(['GET', ])
+@authentication_classes([TokenAuthentication, ])
+@permission_classes([IsAuthenticated, ])
+def get_current_account_detail(request):
+    serializer = AccountDisplaySerializer(request.user, context={'request': request})
+    return Response(serializer.data)
 
 
 
 #----------------ADMIN WALLET VIEWS-------------------
 class AdminListDisplayWalletAPIView(ListAPIView):
     permission_classes = [IsAdminUser, ]
+    authentication_classes = [TokenAuthentication, ]
     serializer_class = WalletDisplaySerializer
     queryset = Wallet.objects.all()
 
 
 class AdminCreateWalletAPIView(CreateAPIView):
     permission_classes = [IsAdminUser, ]
+    authentication_classes = [TokenAuthentication, ]
     serializer_class = WalletCreateSerializer
 
 
 class AdminUpdateDeleteWalletAPIView(APIView):
     permission_classes = [IsAdminUser, ]
+    authentication_classes = [TokenAuthentication, ]
 
     def get(self, request, walletname):
         wallet = get_object_or_404(Wallet, name=walletname)
@@ -131,6 +152,7 @@ class AdminUpdateDeleteWalletAPIView(APIView):
 #----------------REGULAR WALLET VIEWS-----------------
 class ListDisplayWalletAPIView(ListAPIView):
     permission_classes = [IsAuthenticated, ]
+    authentication_classes = [TokenAuthentication, ]
     serializer_class = WalletDisplaySerializer
     
     def get_queryset(self):
@@ -138,7 +160,7 @@ class ListDisplayWalletAPIView(ListAPIView):
 
 
 @api_view(['POST', ])
-#@authentication_classes([TokenAuthentication, ])
+@authentication_classes([TokenAuthentication, ])
 @permission_classes([IsAuthenticated, ])
 def add_wallet(request):
     serializer = WalletAddSerializer(data=request.data)
@@ -150,26 +172,30 @@ def add_wallet(request):
 
 
 @api_view(['DELETE', ])
-#@authentication_classes([TokenAuthentication, ])
+@authentication_classes([TokenAuthentication, ])
 @permission_classes([IsAuthenticated, ])
 def remove_wallet(request, walletname):
     wallet = get_object_or_404(Wallet, name=walletname)
+    if not request.user.wallets.filter(name=walletname).exists():
+        return Response({'detail': f'У вас нет кошелька {wallet.name}.'}, status=status.HTTP_400_BAD_REQUEST)
+    request.user.wallets.remove(wallet)
 
     # if we remove wallet from account, it should be also removed
     # from all the orders, which have this wallet attached to them
     # either as orderer_wallet or executor_wallet
     if hasattr(request.user, 'current_order'):
-        if hasattr(request.user.current_order, 'exector_wallet'):
-            request.user.current_order.exector_wallet = None
+        if hasattr(request.user.current_order, 'executor_wallet'):
+            request.user.current_order.executor_wallet = None
+            request.user.current_order.save()
     
     orders_with_this_author_wallet = Order.objects\
         .filter(orderer_wallet__name=walletname)\
-        .filter(author__name=request.user.username)
+        .filter(author__username=request.user.username)
     
     for order in orders_with_this_author_wallet:
         order.orderer_wallet = None
+        order.save()
 
-    request.user.wallets.remove(wallet)
     return Response({'success': f'Кошелёк {wallet.name} успешно убран из доступных.'}, status=status.HTTP_204_NO_CONTENT)
 
 
@@ -181,6 +207,7 @@ class ListCreateOrderAPIView(ListCreateAPIView):
     queryset = Order.objects.all().order_by('-date_posted')
     pagination_class = PageNumberPagination
     permission_classes = [IsAuthenticatedOrReadOnly, ]
+    authentication_classes = [TokenAuthentication, ]
 
     def get(self, request, *args, **kwargs):
         response = super().get(request, *args, **kwargs)
@@ -205,7 +232,8 @@ class ListCreateOrderAPIView(ListCreateAPIView):
 
 class DisplayUpdateDeleteOrderAPIView(RetrieveUpdateDestroyAPIView):
     serializer_class = OrderSerializer
-    permission_classes = [IsSameAsAuthorOrReadonly]
+    permission_classes = [IsSameAsAuthorOrReadonly, ]
+    authentication_classes = [TokenAuthentication, ]
     queryset = Order.objects.all()
     lookup_field = 'id'
 
@@ -231,6 +259,7 @@ class DisplayUpdateDeleteOrderAPIView(RetrieveUpdateDestroyAPIView):
 
 
 @api_view(['PATCH', ])
+@authentication_classes([TokenAuthentication, ])
 @permission_classes([IsAuthenticated, ])
 def make_order_action(request, id):
     """
@@ -273,6 +302,7 @@ def make_order_action(request, id):
     elif isinstance(pick_ord_wallet, str) and pick_ord_wallet.strip() != '' and perms['can_pick_ord_wallet']:
         if pick_ord_wallet.strip() == 'null':
             order.orderer_wallet = None
+            order.save()
             return Response(
                 {'success': f'Автор {request.user.username} убрал кошелёк для оплаты по заказу \'{order}\'.'}
             )
@@ -294,6 +324,7 @@ def make_order_action(request, id):
     elif isinstance(pick_exec_wallet, str) and pick_exec_wallet.strip() != '' and perms['can_pick_exec_wallet']:
         if pick_exec_wallet.strip() == 'null':
             order.executor_wallet = None
+            order.save()
             return Response(
                 {'success': f'Исполнитель {request.user.username} убрал кошелёк для начисления средств по заказу \'{order}\'.'}
             )
