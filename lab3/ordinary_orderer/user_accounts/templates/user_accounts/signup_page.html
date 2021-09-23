@@ -1,9 +1,0 @@
-{% extends 'orders/base.html' %}
-
-{% block content %}
-<form action="" method="POST" enctype="multipart/form-data">
-  {% csrf_token %} 
-  {{ form.as_p }}
-  <button type="submit" class="submit_btn" id="submit_btn">Подтвердить</button>
-</form>
-{% endblock %}
