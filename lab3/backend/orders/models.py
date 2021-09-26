@@ -6,7 +6,7 @@ from django.dispatch import receiver
 from rest_framework.authtoken.models import Token
 from proj_helpers.uuid_model import AbstractUUIDModel
 from proj_helpers.order_state import OrderState
-from django.core.validators import MinValueValidator
+from django.core.validators import EmailValidator, MinValueValidator
 from proj_helpers.custom_validators import (
     phone_validator,
     name_validator
@@ -48,7 +48,12 @@ class Wallet(AbstractUUIDModel):
 
 
 class Account(AbstractUser):
-    email = models.EmailField(unique=True, blank=True, null=False)
+    email = models.EmailField(
+        unique=True,
+        blank=True,
+        null=False,
+        validators=[EmailValidator]
+    )
     phone_number = models.CharField(
         validators=[phone_validator],
         max_length=17,
@@ -75,7 +80,7 @@ class Account(AbstractUser):
             old_inst = Account.objects.get(id=self.id)
             if old_inst.profile_pic != self.profile_pic:
                 old_inst.profile_pic.delete()
-        except: 
+        except:
             pass
         super(Account, self).save(*args, **kwargs)
 
@@ -106,7 +111,8 @@ class Order(AbstractUUIDModel):
         on_delete=models.SET_NULL,
         related_name='current_order'
     )
-    title = models.CharField(max_length=100, blank=False, null=False, unique=True)
+    title = models.CharField(
+        max_length=100, blank=False, null=False, unique=True)
     description = models.TextField(blank=False, null=False)
     date_posted = models.DateTimeField(auto_now_add=True)
     price = DecimalField(

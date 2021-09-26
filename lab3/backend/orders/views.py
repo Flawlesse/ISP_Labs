@@ -1,9 +1,9 @@
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from orders.models import Account, Wallet, Order
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.views import APIView
 from rest_framework.generics import (
-    CreateAPIView, ListAPIView, RetrieveUpdateDestroyAPIView, 
+    CreateAPIView, ListAPIView, RetrieveUpdateDestroyAPIView,
     ListCreateAPIView,
     get_object_or_404,
 )
@@ -11,9 +11,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import (
-    AccountDisplaySerializer, AccountUpdateSerializer, 
-    RegistrationSerializer, 
-    WalletAddSerializer, WalletDisplaySerializer, 
+    AccountDisplaySerializer, AccountUpdateSerializer,
+    RegistrationSerializer,
+    WalletAddSerializer, WalletDisplaySerializer,
     WalletUpdateSerializer, WalletCreateSerializer,
     OrderSerializer
 )
@@ -32,24 +32,25 @@ from proj_helpers.transaction import Transaction, TransactionError
 from proj_helpers.order_perms import get_permissions_for_order
 
 
-#----------------ACCOUNT VIEWS------------------------
+# ----------------ACCOUNT VIEWS------------------------
 class AccountListAPIView(ListAPIView):
     queryset = get_user_model().objects.all().order_by('username')
     serializer_class = AccountDisplaySerializer
+    pagination_class = None
 
 
 class DisplayUpdateDeleteAccountAPIView(APIView):
     permission_classes = [IsSameUserAccountOrReadonly, ]
     authentication_classes = [TokenAuthentication, ]
-    parser_classes = [MultiPartParser, FormParser, ]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     queryset = Account.objects.all()
 
     def get(self, request, *args, **kwargs):
         username = kwargs.pop('username')
         account = get_object_or_404(self.queryset, username=username)
-        serializer = AccountDisplaySerializer(account, context={"request": request})
+        serializer = AccountDisplaySerializer(
+            account, context={"request": request})
         return Response(serializer.data)
-
 
     def put(self, request, username):
         account = get_object_or_404(self.queryset, username=username)
@@ -57,12 +58,12 @@ class DisplayUpdateDeleteAccountAPIView(APIView):
         serializer = AccountUpdateSerializer(account, data=request.data)
 
         if serializer.is_valid():
+            serializer.save()
             return Response(
                 {'success': f'Изменена информация об аккаунте {username}'},
                 status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
     def delete(self, request, username):
         account = get_object_or_404(self.queryset, username=username)
@@ -85,7 +86,8 @@ class RegisterAPIView(CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
-        account = get_user_model().objects.get(username=response.data['username'])
+        account = get_user_model().objects.get(
+            username=response.data['username'])
         data = {}
         data['token'] = Token.objects.get(user=account).key
         return Response(data)
@@ -95,17 +97,17 @@ class RegisterAPIView(CreateAPIView):
 @authentication_classes([TokenAuthentication, ])
 @permission_classes([IsAuthenticated, ])
 def get_current_account_detail(request):
-    serializer = AccountDisplaySerializer(request.user, context={'request': request})
+    serializer = AccountDisplaySerializer(
+        request.user, context={'request': request})
     return Response(serializer.data)
 
 
-
-#----------------ADMIN WALLET VIEWS-------------------
+# ----------------ADMIN WALLET VIEWS-------------------
 class AdminListDisplayWalletAPIView(ListAPIView):
     permission_classes = [IsAdminUser, ]
     authentication_classes = [TokenAuthentication, ]
     serializer_class = WalletDisplaySerializer
-    queryset = Wallet.objects.all()
+    queryset = Wallet.objects.all().order_by('-money')
 
 
 class AdminCreateWalletAPIView(CreateAPIView):
@@ -125,7 +127,8 @@ class AdminUpdateDeleteWalletAPIView(APIView):
 
     def patch(self, request, walletname):
         wallet = get_object_or_404(Wallet, name=walletname)
-        serializer = WalletUpdateSerializer(wallet, data=request.data, partial=True)
+        serializer = WalletUpdateSerializer(
+            wallet, data=request.data, partial=True)
         if serializer.is_valid():
             d1 = wallet.__dict__.copy()
             d2 = serializer.save().__dict__
@@ -139,24 +142,22 @@ class AdminUpdateDeleteWalletAPIView(APIView):
                 status=status.HTTP_200_OK
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def delete(self, request, walletname):
         wallet = get_object_or_404(Wallet, name=walletname)
         wallet.delete()
         return Response({'success': f'Кошелёк {walletname} успешно удалён.'}, status=status.HTTP_204_NO_CONTENT)
 
 
-
-
-
-#----------------REGULAR WALLET VIEWS-----------------
+# ----------------REGULAR WALLET VIEWS-----------------
 class ListDisplayWalletAPIView(ListAPIView):
     permission_classes = [IsAuthenticated, ]
     authentication_classes = [TokenAuthentication, ]
     serializer_class = WalletDisplaySerializer
-    
+    pagination_class = None
+
     def get_queryset(self):
-        return Wallet.objects.filter(accounts=self.request.user)
+        return Wallet.objects.filter(accounts=self.request.user).order_by('-money')
 
 
 @api_view(['POST', ])
@@ -187,11 +188,11 @@ def remove_wallet(request, walletname):
         if hasattr(request.user.current_order, 'executor_wallet'):
             request.user.current_order.executor_wallet = None
             request.user.current_order.save()
-    
+
     orders_with_this_author_wallet = Order.objects\
         .filter(orderer_wallet__name=walletname)\
         .filter(author__username=request.user.username)
-    
+
     for order in orders_with_this_author_wallet:
         order.orderer_wallet = None
         order.save()
@@ -199,9 +200,7 @@ def remove_wallet(request, walletname):
     return Response({'success': f'Кошелёк {wallet.name} успешно убран из доступных.'}, status=status.HTTP_204_NO_CONTENT)
 
 
-
-
-#----------------ORDER VIEWS--------------------------
+# ----------------ORDER VIEWS--------------------------
 class ListCreateOrderAPIView(ListCreateAPIView):
     serializer_class = OrderSerializer
     queryset = Order.objects.all().order_by('-date_posted')
@@ -246,7 +245,7 @@ class DisplayUpdateDeleteOrderAPIView(RetrieveUpdateDestroyAPIView):
             # error messages
             pass
         return response
-    
+
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
         if response.status_code == 200:
@@ -283,17 +282,19 @@ def make_order_action(request, id):
     pick_exec_wallet = request.data.get('pick_exec_wallet', '')
     pay_and_delete = request.data.get('pay_and_delete', '')
 
-    print(accept_order, reject_order, pick_ord_wallet, pick_exec_wallet, pay_and_delete)
+    print(accept_order, reject_order, pick_ord_wallet,
+          pick_exec_wallet, pay_and_delete)
 
-    if accept_order.strip() == 'true' and perms['can_accept']:
+    if accept_order is True and perms['can_accept']:
         order.executor = request.user
         order.save()
         return Response(
             {'success': f'Пользователь {request.user.username} принял заказ {order}.'}
         )
 
-    elif reject_order.strip() == 'true' and perms['can_reject']:
+    elif reject_order is True and perms['can_reject']:
         order.executor = None
+        order.executor_wallet = None
         order.save()
         return Response(
             {'success': f'Пользователь {request.user.username} отказался от заказа {order}.'}
@@ -306,11 +307,12 @@ def make_order_action(request, id):
             return Response(
                 {'success': f'Автор {request.user.username} убрал кошелёк для оплаты по заказу \'{order}\'.'}
             )
-        wallet = get_object_or_404(request.user.wallets, name=pick_ord_wallet.strip())
-        if (hasattr(order, 'executor_wallet') and 
-            order.executor_wallet is not None and 
-            wallet.name == order.executor_wallet.name
-        ):
+        wallet = get_object_or_404(
+            request.user.wallets, name=pick_ord_wallet.strip())
+        if (hasattr(order, 'executor_wallet') and
+                order.executor_wallet is not None and
+                wallet.name == order.executor_wallet.name
+                ):
             return Response(
                 {'detail': f'Нельзя выставить тот же кошелёк, что и исполнитель.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -328,11 +330,12 @@ def make_order_action(request, id):
             return Response(
                 {'success': f'Исполнитель {request.user.username} убрал кошелёк для начисления средств по заказу \'{order}\'.'}
             )
-        wallet = get_object_or_404(request.user.wallets, name=pick_exec_wallet.strip())
-        if (hasattr(order, 'orderer_wallet') and 
-            order.orderer_wallet is not None and 
-            wallet.name == order.orderer_wallet.name
-        ):
+        wallet = get_object_or_404(
+            request.user.wallets, name=pick_exec_wallet.strip())
+        if (hasattr(order, 'orderer_wallet') and
+                order.orderer_wallet is not None and
+                wallet.name == order.orderer_wallet.name
+                ):
             return Response(
                 {'detail': f'Нельзя выставить тот же кошелёк, что и заказчик.'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -343,7 +346,7 @@ def make_order_action(request, id):
             {'success': f'Исполнитель {request.user.username} выставил кошелёк {wallet} для начисления средств по заказу \'{order}\'.'}
         )
 
-    elif pay_and_delete.strip() == 'true' and perms['can_pay_and_delete']:
+    elif pay_and_delete is True and perms['can_pay_and_delete']:
         new_transaction = Transaction(order)
         if new_transaction.is_valid():
             try:
