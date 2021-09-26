@@ -136,7 +136,7 @@ class RegisterForm extends React.Component {
                     <div className="auth-logo">
                         Регистрация
                     </div>
-                    <form method="POST" onSubmit={this.handleSubmit}>
+                    <form onSubmit={this.handleSubmit}>
                         {(() => {
                             if (this.state.fieldErrors.username) {
                                 return (

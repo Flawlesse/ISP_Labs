@@ -36,7 +36,6 @@ class OrderItem extends React.Component {
 
             redirect: false,
             action_happened: props.shouldUpdate ? props.shouldUpdate : false,
-            expand: props.expand,
             loading: true,
         }
     }
@@ -224,7 +223,7 @@ class OrderItem extends React.Component {
                                     this.state.isItem
                                         ?
                                         <p>
-                                            {this.state.description.length > 200 ? this.state.description.slice(0, 200) + "..." : this.state.description}
+                                            {this.state.description.length > 100 ? this.state.description.slice(0, 100) + "..." : this.state.description}
                                         </p>
                                         :
                                         <p>{this.state.description}</p>

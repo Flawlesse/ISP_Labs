@@ -3,7 +3,7 @@ import './App.css'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { fab } from '@fortawesome/free-brands-svg-icons'
 import { fas } from '@fortawesome/free-solid-svg-icons'
-import { BrowserRouter, Route, Redirect } from 'react-router-dom'
+import { BrowserRouter, Route, Redirect, Switch } from 'react-router-dom'
 import { axiosInstance } from '../database/axios'
 import LoginForm from './auth/LoginForm'
 import RegisterForm from './auth/RegisterForm'
@@ -65,16 +65,16 @@ class App extends React.Component {
   render() {
     return (
       <BrowserRouter>
-        <Route path="/accounts/login" component={LoginForm} />
-        <Route path="/accounts/register" component={RegisterForm} />
+        <Switch>
+          <Route path="/accounts/login" component={LoginForm} />
+          <Route path="/accounts/register" component={RegisterForm} />
 
-        <Route exact path="/"><Redirect to="/orders" /></Route>
-        <Route exact path="/orders" component={OrderList}></Route>
-        <Route exact path="/orders/create" component={OrderForm} action={"create"}></Route>
-        <Route exact path="/orders/:id" component={OrderItem} isItem={false}></Route>
-        <Route exact path="/orders/:id/update" component={OrderForm} action={"update"}></Route>
-
-
+          <Route exact path="/"><Redirect to="/orders" /></Route>
+          <Route exact path="/orders" component={OrderList}></Route>
+          <Route exact path="/orders/create" render={(props) => <OrderForm {...props} action={"create"} />}></Route>
+          <Route exact path="/orders/:id" component={(props) => <OrderItem {...props} isItem={false} />}></Route>
+          <Route exact path="/orders/:id/update" component={(props) => <OrderForm {...props} action={"update"} />}></Route>
+        </Switch>
       </BrowserRouter>
     )
   }
