@@ -13,7 +13,7 @@ class OrderList extends React.Component {
             previous: null, // prev page for pagination
             currentPage: (new URLSearchParams(props.location.search)).get('page') ? (new URLSearchParams(props.location.search)).get('page') : 1,
             results: [],
-            needListUpdate: false,
+            needListUpdate: false
         }
     }
     componentDidMount() {
@@ -66,6 +66,7 @@ class OrderList extends React.Component {
                     }
                 </ul>
 
+
                 <div className="flex-container align-center" style={{ paddingBottom: "30px" }}>
                     <Link to="/orders/create">
                         <button type="button" className="create-order-btn">
@@ -73,6 +74,7 @@ class OrderList extends React.Component {
                         </button>
                     </Link>
                 </div>
+
 
                 <div className="paginator flex-container align-center">
                     {

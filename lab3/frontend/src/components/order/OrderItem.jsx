@@ -179,7 +179,7 @@ class OrderItem extends React.Component {
 
 
         return (
-            <div className="flex-container order-section">
+            <div className="flex-container order-section" style={!this.state.isItem ? { marginTop: "110px" } : {}}>
                 <div className="grid-container-outer order" style={{ border: "2px solid black" }}>
                     <div className="grid-item flex-container-col align-up" style={{ paddingLeft: "10px" }}>
                         <Link to={`/accounts/${this.state.author.username}`}>

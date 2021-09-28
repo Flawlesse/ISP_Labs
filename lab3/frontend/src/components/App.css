@@ -111,7 +111,7 @@ body {
     padding: 0px;
     width: 100%;
     height: 100%;
-    background-color: var(--auth_background_color);
+    background-color: rgb(49, 158, 230);
 }
 
 .auth-form-wrapper {
@@ -366,6 +366,7 @@ div.fieldWrapper textarea {
 ul.order-list {
     list-style-type: none;
     margin-right: 200px;
+    margin-top: 110px;
     min-width: fit-content;
 }
 
@@ -420,6 +421,31 @@ ul.order-list {
     text-shadow: rgb(102, 52, 4) 5px 5px;
 }
 
+.author-pic {
+    border: 2px solid black;
+}
+
+.page-btn {
+    margin-left: 20px;
+    margin-right: 20px;
+    text-decoration: none;
+    font-size: 3rem;
+    color: hsl(243, 100%, 50%);
+}
+
+.paginator {
+    font-size: 2rem;
+    padding-bottom: 30px;
+}
+
+/*---------------------------------------------------ACCOUNTS AND NAVBAR---------------------------------------*/
+.round-thumbnail-75 {
+    border-radius: 50%;
+    max-width: 75px;
+    max-height: 75px;
+    min-width: 75px;
+    min-height: 75px;
+}
 
 .round-thumbnail-100 {
     border-radius: 50%;
@@ -437,19 +463,71 @@ ul.order-list {
     min-height: 200px;
 }
 
-.author-pic {
+.navbar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: max-content;
+    background-color: rgb(181, 172, 172);
+    border-bottom: 3px solid rgb(68, 68, 68);
+    z-index: 300;
+}
+
+.navbar>ul {
+    list-style-type: none;
+    margin-block-start: 0;
+    margin-block-end: 0;
+    height: inherit;
+}
+
+.nav-item {
+    border: 2px solid rgb(181, 172, 172);
+    padding-right: 10px;
+    padding-left: 10px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+}
+
+.nav-item:hover {
     border: 2px solid black;
 }
 
-.page-btn {
-    margin-left: 20px;
-    margin-right: 20px;
+.nav-item>a {
     text-decoration: none;
-    font-size: 3rem;
-    color: hsl(243, 100%, 50%);
+    color: hsl(236, 73%, 19%);
 }
 
-.paginator {
-    font-size: 2rem;
-    padding-bottom: 30px;
+.greeting {
+    margin-right: 50px;
+}
+
+/*--------------------------------------------------------------WALLETS---------------------------------------------------------------------------*/
+.wallet-form-wrapper {
+    background-color: hsl(263, 78%, 60%);
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    justify-self: center;
+    max-width: 60%;
+    min-height: 40vh;
+    left: 20%;
+    top: 20%;
+    border: 5px solid hsl(233, 84%, 22%);
+    border-radius: 25px;
+}
+
+.wallet-logo {
+    min-width: 200px;
+    min-height: 50px;
+    font-size: 5rem;
+    font-weight: bold;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-style: italic;
+    position: relative;
+    color: rgb(232, 125, 25);
+    text-shadow: rgb(102, 52, 4) 5px 5px;
 }

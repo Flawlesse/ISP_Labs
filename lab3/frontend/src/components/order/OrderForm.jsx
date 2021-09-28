@@ -23,6 +23,7 @@ class OrderForm extends React.Component {
             loading: true,
             redirect: false,
         }
+        this.isloggedIn = props.isLoggedIn
         this.timerID = null
     }
     componentDidMount() {
@@ -127,6 +128,11 @@ class OrderForm extends React.Component {
     }
 
     render() {
+        if (!this.isloggedIn) {
+            // message about you're not logged in
+            return <Redirect to='/orders/'></Redirect>
+        }
+
         if (this.state.loading) {
             return <div className="flex-container align-center" style={{ marginTop: '10vh' }}><img src={loadgif}></img></div>
         }
@@ -153,7 +159,7 @@ class OrderForm extends React.Component {
                             <input
                                 type="text"
                                 required
-                                maxLength="150"
+                                maxLength="100"
                                 name="title"
                                 id="title"
                                 placeholder="Заголовок..."

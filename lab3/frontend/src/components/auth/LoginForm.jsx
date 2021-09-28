@@ -11,8 +11,8 @@ class LoginForm extends React.Component {
             password: '',
             hasErrors: false,
             errors: null,
-            redirect: false,
         }
+        this.login = props.appLogin
         this.timerID = null
     }
 
@@ -54,6 +54,7 @@ class LoginForm extends React.Component {
                     key: "access_token",
                     newValue: response.data.token,
                 }))
+                this.login()
                 this.setState(({
                     redirect: true,
                 }))
@@ -74,7 +75,7 @@ class LoginForm extends React.Component {
 
     render() {
         if (this.state.redirect) {
-            return <Redirect to='/'></Redirect>
+            return <Redirect to={`/accounts/${this.state.username}`}></Redirect>
         }
         return (
             <div className="flex-container-col inverse-cetner" style={{ paddingTop: '20vh' }}>
@@ -82,15 +83,12 @@ class LoginForm extends React.Component {
                     <div className="auth-logo">
                         Вход
                     </div>
-                    {(() => {
-                        if (this.state.errors) {
-                            return (
-                                <div className="errorlist">
-                                    {this.state.errors}
-                                </div>
-                            )
-                        }
-                    })()}
+                    {
+                        this.state.errors &&
+                        <div className="errorlist">
+                            {this.state.errors}
+                        </div>
+                    }
                     <form method="POST" onSubmit={this.handleSubmit}>
                         <div className="fieldWrapper">
                             <label htmlFor="username">
