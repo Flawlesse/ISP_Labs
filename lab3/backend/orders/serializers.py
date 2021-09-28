@@ -210,15 +210,21 @@ class WalletAddSerializer(serializers.ModelSerializer):
     def validate_name(self, name):
         if not Wallet.objects.filter(name=name).exists():
             raise serializers.ValidationError(
-                "Не существует кошелька с данными именем.")
+                "Не существует кошелька с данными именем."
+            )
         return name
 
     def validate_password(self, password):
-        wallet = Wallet.objects.get(name=self.initial_data['name'].strip())
-        enc_password = wallet.password
-        if not check_pass(password, enc_password):
-            raise serializers.ValidationError("Неверный пароль.")
-        return password
+        print(self.initial_data)
+
+        if Wallet.objects.filter(name=self.initial_data['name'].strip()).exists():
+            wallet = Wallet.objects.get(name=self.initial_data['name'].strip())
+            enc_password = wallet.password
+            if not check_pass(password, enc_password):
+                raise serializers.ValidationError("Неверный пароль.")
+            return password
+        else:
+            raise serializers.ValidationError("Проверьте имя пользователя.")
 
     def get_wallet(self):
         if self.is_valid():

@@ -86,18 +86,24 @@ class AddWalletForm extends React.Component {
                         Добавление<br />кошелька
                     </div>
                     <form onSubmit={this.handleSubmit}>
+                        {
+                            this.state.fieldErrors.name &&
+                            <div className="errorlist">
+                                {this.state.fieldErrors.name}
+                            </div>
+                        }
                         <div className="fieldWrapper">
-                            {
-                                this.state.fieldErrors.name &&
-                                <div className="errorlist">
-                                    {this.state.errors}
-                                </div>
-                            }
                             <label htmlFor="name">
                                 <FontAwesomeIcon icon={['fas', 'user']} />
                             </label>
                             <input type="text" required maxLength="40" name="name" id="name" placeholder="Имя кошелька..." onChange={this.handleChange}></input>
                         </div>
+                        {
+                            this.state.fieldErrors.password &&
+                            <div className="errorlist">
+                                {this.state.fieldErrors.password}
+                            </div>
+                        }
                         <div className="fieldWrapper">
                             <label htmlFor="password">
                                 <FontAwesomeIcon icon={['fas', 'key']} />

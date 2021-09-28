@@ -463,6 +463,14 @@ ul.order-list {
     min-height: 200px;
 }
 
+.round-thumbnail-300 {
+    border-radius: 50%;
+    max-width: 300px;
+    max-height: 300px;
+    min-width: 300px;
+    min-height: 300px;
+}
+
 .navbar {
     position: fixed;
     left: 0;
@@ -503,6 +511,43 @@ ul.order-list {
     margin-right: 50px;
 }
 
+.grid-container-inner-account-detail {
+    display: grid;
+    grid-template-rows: fill fill;
+}
+
+.account-content {
+    color: rgb(0, 0, 0);
+    font-size: 1rem;
+}
+
+.account-action-group {
+    font-size: 3rem;
+    border-bottom: 2px solid rgb(63, 62, 62);
+}
+
+.account-action-group>span>a,
+.account-action-group>span>span {
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+.account-edit-link {
+    color: chocolate;
+}
+
+.account-delete-link {
+    color: red;
+}
+
+.account-detail {
+    border-radius: 25px;
+    border: 3px solid black;
+    margin-right: 50px;
+    margin-left: 50px;
+    background-color: rgb(165, 238, 243);
+}
+
 /*--------------------------------------------------------------WALLETS---------------------------------------------------------------------------*/
 .wallet-form-wrapper {
     background-color: hsl(263, 78%, 60%);
@@ -530,4 +575,35 @@ ul.order-list {
     position: relative;
     color: rgb(232, 125, 25);
     text-shadow: rgb(102, 52, 4) 5px 5px;
+}
+
+.wallets-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.wallet-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.wallet-item {
+    display: flex;
+    justify-content: space-between;
+    border-radius: 3px;
+    border: 2px solid rgb(43, 42, 42);
+    margin-top: 20px;
+    margin-bottom: 20px;
+    font-size: 2rem;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.wallet-delete-icon {
+    color: red;
+}
+
+.wallet-icon {
+    color: rebeccapurple;
 }
