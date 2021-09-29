@@ -1,6 +1,7 @@
 import axios from "axios";
+import { API_SERVER } from "../settings";
 
-const baseURL = "http://127.0.0.1:8000/api/v1/";
+const baseURL = API_SERVER + "/api/v1/";
 
 let axiosInstance = axios.create({
   baseURL: baseURL,
@@ -29,6 +30,7 @@ let axiosMultipartInstance = axios.create({
 });
 
 window.onstorage = (event) => {
+  console.log(baseURL);
   console.log("-----LOG------");
   console.log(event.storageArea);
   console.log(event.key);

@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
 from pathlib import Path
-from corsheaders.defaults import default_headers
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,12 +21,53 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-1@lax-(a3exxn#g(a$g=syx9#mw_+4tp&t0k!_4tr)pd_yd69+'
+try:
+    DJANGO_ENV = os.environ.get("DJANGO_ENV")
+except:
+    DJANGO_ENV = 'local'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+if DJANGO_ENV == 'development' or DJANGO_ENV == 'production':
+
+    try:
+        SECRET_KEY = os.environ.get("SECRET_KEY")
+    except:
+        SECRET_KEY = 'localsecret'
+
+    try:
+        DEBUG = int(os.environ.get("DEBUG", default=0))
+    except:
+        DEBUG = False
+
+    try:
+        ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS").split(" ")
+    except:
+        ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'localhost']
+
+    DATABASES = {
+        "default": {
+            "ENGINE": os.environ.get("DB_ENGINE", "django.db.backends.sqlite3"),
+            "NAME": os.environ.get("DB_NAME", os.path.join(BASE_DIR, "db.sqlite3")),
+            "USER": os.environ.get("DB_USER", "user"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", "password"),
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": os.environ.get("DB_PORT", "5432"),
+        }
+    }
+else:
+    SECRET_KEY = 'localsecret'
+    DEBUG = True
+    ALLOWED_HOSTS = ['127.0.0.1', '0.0.0.0', 'localhost']
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': 'predictiondb',
+            'USER': 'postgres_user',
+            'PASSWORD': 'postgres_password',
+            'HOST': '127.0.0.1',
+            'PORT': '5432',
+        }
+    }
 
 # Application definition
 INSTALLED_APPS = [
@@ -78,21 +119,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'ordinary_orderer_db',
-        'USER': 'akado',
-        'PASSWORD': 'akado',
-        'HOST': 'localhost',
-        'PORT': '5432'
-    }
-}
-
 # Custom project-level things
 AUTH_USER_MODEL = 'orders.Account'
 
@@ -106,19 +132,7 @@ REST_FRAMEWORK = {
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ORIGIN_WHITELIST = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-]
-
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-]
+CORS_ORIGIN_ALLOW_ALL = True
 
 CORS_ALLOW_METHODS = [
     'GET',
@@ -168,13 +182,12 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-STATIC_ROOT = Path.joinpath(BASE_DIR, 'static')
+STATIC_ROOT = BASE_DIR / 'static'
 
 MEDIA_URL = '/media/'
 
-MEDIA_ROOT = Path.joinpath(BASE_DIR, 'media')
+MEDIA_ROOT = BASE_DIR / 'media'
 
-DEFAULT_IMAGE_URL = 'no_pic.jpeg'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field

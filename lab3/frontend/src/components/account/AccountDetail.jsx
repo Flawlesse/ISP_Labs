@@ -23,7 +23,7 @@ class AccountDetail extends React.Component {
             wallets: [],
 
             loading: true,
-            redirect: true,
+            redirect: false,
         }
     }
     componentDidMount() {
@@ -50,12 +50,13 @@ class AccountDetail extends React.Component {
     }
 
     render() {
+        if (this.state.redirect) {
+            return <Redirect to="/"></Redirect>
+        }
         if (this.state.loading) {
             return <div className="flex-container align-center"><img src={loadgif}></img></div>
         }
-        if (this.redirect) {
-            return <Redirect to="/"></Redirect>
-        }
+
 
         return (
             <div>
